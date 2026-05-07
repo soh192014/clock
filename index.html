@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teal Future Digital Clock</title>
+    <style>
+        body {
+            background-color: #D1EEEA;
+            font-family: Arial, sans-serif;
+        }
+        .clock-container {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="clock-container">
+        <div id="time" style="font-size: 48px; font-weight: bold;"></div>
+        <div id="date" style="font-size: 24px;"></div>
+        <div id="location" style="font-size: 24px;"></div>
+        <div id="signals" style="font-size: 24px; margin: 10px;">
+            <span id="wifi-signal"></span>
+            <span id="bluetooth-signal"></span>
+        </div>
+        <button id="play-btn">Play Song</button>
+        <audio id="song" src="your-song.mp3" loop></audio>
+    </div>
+
+    <script>
+        const timeEl = document.getElementById('time');
+        const dateEl = document.getElementById('date');
+        const locationEl = document.getElementById('location');
+        const wifiSignalEl = document.getElementById('wifi-signal');
+        const bluetoothSignalEl = document.getElementById('bluetooth-signal');
+        const playBtn = document.getElementById('play-btn');
+        const song = document.getElementById('song');
+
+        function updateClock() {
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            const seconds = now.getSeconds().toString().padStart(2, '0');
+            timeEl.innerText = `${hours}:${minutes}:${seconds}`;
+
+            const day = now.getDate().toString().padStart(2, '0');
+            const month = (now.getMonth() + 1).toString().padStart(2, '0');
+            const year = now.getFullYear();
+            dateEl.innerText = `${day}/${month}/${year}`;
+
+            // Get location (you might need to use a geolocation API for accurate location)
+            navigator.geolocation.getCurrentPosition((pos) => {
+                locationEl.innerText = `Lat: ${pos.coords.latitude}, Long: ${pos.coords.longitude}`;
+            });
+        }
+
+        function updateSignals() {
+            // Check WiFi signal (this might not work in all browsers)
+            if (navigator.connection) {
+                const wifiSignal = navigator.connection.downlink;
+                wifiSignalEl.innerText = `WiFi: ${wifiSignal} Mbps`;
+            } else {
+                wifiSignalEl.innerText = 'WiFi: Unknown';
+            }
+
+            // Check Bluetooth signal (this requires a Bluetooth API, might not work in browsers)
+            // For simplicity, we'll just display a placeholder
+            bluetoothSignalEl.innerText = 'Bluetooth: 📶';
+        }
+
+        setInterval(updateClock, 1000);
+        setInterval(updateSignals, 5000);
+
+        playBtn.addEventListener('click', () => {
+            song.play();
+        });
+    </script>
+</body>
+</html>
