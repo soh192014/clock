@@ -61,12 +61,7 @@
                 wifiSignalEl.innerText = `WiFi: ${wifiSignal} Mbps`;
             } else {
                 wifiSignalEl.innerText = 'WiFi: Unknown';
-            }
-
-            // Check Bluetooth signal (this requires a Bluetooth API, might not work in browsers)
-            // For simplicity, we'll just display a placeholder
-            bluetoothSignalEl.innerText = 'Bluetooth: 📶';
-        }
+            } 
 
         setInterval(updateClock, 1000);
         setInterval(updateSignals, 5000);
