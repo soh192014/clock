@@ -3,70 +3,183 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teal Future Digital Clock</title>
+    <title>Teal Future Pro</title>
     <style>
-        body {
-            background-color: #D1EEEA;
-            font-family: Arial, sans-serif;
+        :root {
+            --teal: #00f2ff; /* 更亮的未来感青色 */
+            --dark-teal: #008080;
         }
+
+        body {
+            background: #0d1b1e; /* 深色背景更能衬托青色光效 */
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            font-family: 'Courier New', Courier, monospace; /* 换成极客感的等宽字体 */
+            color: var(--teal);
+            overflow: hidden;
+        }
+
+        /* 动态背景光晕 */
+        body::before {
+            content: "";
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: var(--dark-teal);
+            filter: blur(150px);
+            border-radius: 50%;
+            z-index: -1;
+            animation: drift 10s infinite alternate;
+        }
+
+        @keyframes drift {
+            from { transform: translate(-100px, -100px); }
+            to { transform: translate(100px, 100px); }
+        }
+
+        .clock-wrapper {
+            position: relative;
+            width: 350px;
+            height: 350px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* SVG 能量环 */
+        .energy-ring {
+            position: absolute;
+            transform: rotate(-90deg);
+        }
+
+        .energy-ring circle {
+            fill: none;
+            stroke-width: 4;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1s linear;
+        }
+
+        .ring-bg { stroke: rgba(0, 128, 128, 0.2); }
+        .ring-progress {
+            stroke: var(--teal);
+            stroke-dasharray: 880; /* 周长约等于 2 * PI * 140 */
+            stroke-dashoffset: 880;
+            filter: drop-shadow(0 0 8px var(--teal));
+        }
+
         .clock-container {
             text-align: center;
+            z-index: 10;
+        }
+
+        #time {
+            font-size: 56px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        #date { font-size: 14px; opacity: 0.7; letter-spacing: 3px; }
+        
+        #signals {
+            margin-top: 15px;
+            font-size: 12px;
+            border-top: 1px solid rgba(0, 242, 255, 0.3);
+            padding-top: 10px;
+        }
+
+        #play-btn {
+            background: transparent;
+            color: var(--teal);
+            border: 1px solid var(--teal);
+            padding: 8px 20px;
+            margin-top: 20px;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+
+        #play-btn:hover {
+            background: var(--teal);
+            color: #0d1b1e;
+            box-shadow: 0 0 20px var(--teal);
         }
     </style>
 </head>
 <body>
-    <div class="clock-container">
-        <div id="time" style="font-size: 48px; font-weight: bold;"></div>
-        <div id="date" style="font-size: 24px;"></div>
-        <div id="location" style="font-size: 24px;"></div>
-        <div id="signals" style="font-size: 24px; margin: 10px;">
-            <span id="wifi-signal"></span>
+
+    <div class="clock-wrapper">
+        <svg class="energy-ring" width="320" height="320">
+            <circle class="ring-bg" cx="160" cy="160" r="140"></circle>
+            <circle id="progress-bar" class="ring-progress" cx="160" cy="160" r="140"></circle>
+        </svg>
+
+        <div class="clock-container">
+            <div id="time">00:00:00</div>
+            <div id="date">SYSTEM STARTING...</div>
+            <div id="signals">
+                <span id="wifi-signal">LINKING...</span>
+            </div>
+            <button id="play-btn">Initialize Audio</button>
+            <audio id="song" src="your-song.mp3" loop></audio>
         </div>
-        <button id="play-btn">Play Song</button>
-        <audio id="song" src="your-song.mp3" loop></audio>
     </div>
 
     <script>
         const timeEl = document.getElementById('time');
         const dateEl = document.getElementById('date');
-        const locationEl = document.getElementById('location');
         const wifiSignalEl = document.getElementById('wifi-signal');
+        const progressBar = document.getElementById('progress-bar');
         const playBtn = document.getElementById('play-btn');
         const song = document.getElementById('song');
 
+        const CIRCUMFERENCE = 2 * Math.PI * 140;
+
         function updateClock() {
             const now = new Date();
-            const hours = now.getHours().toString().padStart(2, '0');
-            const minutes = now.getMinutes().toString().padStart(2, '0');
-            const seconds = now.getSeconds().toString().padStart(2, '0');
-            timeEl.innerText = `${hours}:${minutes}:${seconds}`;
+            const s = now.getSeconds();
+            
+            // 更新时间
+            timeEl.innerText = now.toTimeString().split(' ')[0];
+            
+            // 更新日期
+            dateEl.innerText = now.toDateString().toUpperCase();
 
-            const day = now.getDate().toString().padStart(2, '0');
-            const month = (now.getMonth() + 1).toString().padStart(2, '0');
-            const year = now.getFullYear();
-            dateEl.innerText = `${day}/${month}/${year}`;
+            // 创意：能量环随秒针转动
+            const offset = CIRCUMFERENCE - (s / 60) * CIRCUMFERENCE;
+            progressBar.style.strokeDashoffset = offset;
 
-            // Get location (you might need to use a geolocation API for accurate location)
-            navigator.geolocation.getCurrentPosition((pos) => {
-                locationEl.innerText = `Lat: ${pos.coords.latitude}, Long: ${pos.coords.longitude}`;
-            });
+            // 每分钟开始时重置一下效果（避免过渡动画小跳变）
+            if (s === 0) {
+                progressBar.style.transition = 'none';
+                progressBar.style.strokeDashoffset = CIRCUMFERENCE;
+                setTimeout(() => progressBar.style.transition = 'stroke-dashoffset 1s linear', 50);
+            }
         }
 
         function updateSignals() {
-            // Check WiFi signal (this might not work in all browsers)
             if (navigator.connection) {
-                const wifiSignal = navigator.connection.downlink;
-                wifiSignalEl.innerText = `WiFi: ${wifiSignal} Mbps`;
+                wifiSignalEl.innerText = `OS.SYS_NET_SPEED: ${navigator.connection.downlink} MBPS`;
+            }
+        }
+
+        playBtn.addEventListener('click', () => {
+            if (song.paused) {
+                song.play();
+                playBtn.innerText = "Mute Ambience";
             } else {
-                wifiSignalEl.innerText = 'WiFi: Unknown';
-            } 
+                song.pause();
+                playBtn.innerText = "Initialize Audio";
+            }
+        });
 
         setInterval(updateClock, 1000);
         setInterval(updateSignals, 5000);
-
-        playBtn.addEventListener('click', () => {
-            song.play();
-        });
+        updateClock();
+        updateSignals();
     </script>
 </body>
 </html>
