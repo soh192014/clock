@@ -1,45 +1,43 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="icon" href="Screenshot_20260510_203622_com_android_chrome_CustomTabActivity_edit_855563587456178.jpg" type="image/x-icon">
-    <title>future's clock </title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teal Future Pro</title>
+    <title>Teal Future OS - Terminal</title>
     <style>
         :root {
-            --teal: #00f2ff; /* 更亮的未来感青色 */
-            --dark-teal: #008080;
+            --teal: #00f2ff;
+            --dark-teal: #004d4d;
+            --bg: #050b0c;
         }
 
-        body {
-            background: #0d1b1e; /* 深色背景更能衬托青色光效 */
+        body, html {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--teal);
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
             height: 100vh;
+        }
+
+        /* 粒子背景画布 */
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .main-interface {
+            position: relative;
+            z-index: 10;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            margin: 0;
-            font-family: 'Courier New', Courier, monospace; /* 换成极客感的等宽字体 */
-            color: var(--teal);
-            overflow: hidden;
-        }
-
-        /* 动态背景光晕 */
-        body::before {
-            content: "";
-            position: absolute;
-            width: 300px;
-            height: 300px;
-            background: var(--dark-teal);
-            filter: blur(150px);
-            border-radius: 50%;
-            z-index: -1;
-            animation: drift 10s infinite alternate;
-        }
-
-        @keyframes drift {
-            from { transform: translate(-100px, -100px); }
-            to { transform: translate(100px, 100px); }
+            height: 100vh;
+            pointer-events: none; /* 让鼠标事件穿透到画布 */
         }
 
         .clock-wrapper {
@@ -49,139 +47,195 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            pointer-events: auto;
         }
 
-        /* SVG 能量环 */
+        /* 能量环 */
         .energy-ring {
             position: absolute;
             transform: rotate(-90deg);
+            filter: drop-shadow(0 0 10px var(--teal));
         }
 
-        .energy-ring circle {
+        .ring-progress {
             fill: none;
-            stroke-width: 4;
-            stroke-linecap: round;
+            stroke: var(--teal);
+            stroke-width: 2;
+            stroke-dasharray: 880;
+            stroke-dashoffset: 880;
             transition: stroke-dashoffset 1s linear;
         }
 
-        .ring-bg { stroke: rgba(0, 128, 128, 0.2); }
-        .ring-progress {
-            stroke: var(--teal);
-            stroke-dasharray: 880; /* 周长约等于 2 * PI * 140 */
-            stroke-dashoffset: 880;
-            filter: drop-shadow(0 0 8px var(--teal));
+        /* 新功能：侧边实时日志 */
+        #log-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 300px;
+            height: 150px;
+            font-size: 10px;
+            color: var(--dark-teal);
+            overflow: hidden;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column-reverse;
         }
 
-        .clock-container {
-            text-align: center;
-            z-index: 10;
+        .log-entry {
+            margin-bottom: 4px;
+            animation: fadeIn 0.3s ease;
         }
 
-        #time {
-            font-size: 56px;
-            font-weight: bold;
-            margin-bottom: 5px;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
         }
 
-        #date { font-size: 14px; opacity: 0.7; letter-spacing: 3px; }
+        #time { font-size: 64px; font-weight: bold; text-shadow: 0 0 20px var(--teal); }
         
-        #signals {
-            margin-top: 15px;
-            font-size: 12px;
-            border-top: 1px solid rgba(0, 242, 255, 0.3);
-            padding-top: 10px;
-        }
-
         #play-btn {
+            pointer-events: auto;
             background: transparent;
             color: var(--teal);
             border: 1px solid var(--teal);
-            padding: 8px 20px;
-            margin-top: 20px;
+            padding: 10px 20px;
+            margin-top: 30px;
             cursor: pointer;
-            transition: 0.3s;
-            text-transform: uppercase;
-            font-size: 12px;
+            backdrop-filter: blur(5px);
         }
 
-        #play-btn:hover {
-            background: var(--teal);
-            color: #0d1b1e;
-            box-shadow: 0 0 20px var(--teal);
-        }
+        #play-btn:hover { background: rgba(0, 242, 255, 0.2); }
     </style>
 </head>
 <body>
 
-    <div class="clock-wrapper">
-        <svg class="energy-ring" width="320" height="320">
-            <circle class="ring-bg" cx="160" cy="160" r="140"></circle>
-            <circle id="progress-bar" class="ring-progress" cx="160" cy="160" r="140"></circle>
-        </svg>
+    <canvas id="canvas"></canvas>
 
-        <div class="clock-container">
-            <div id="time">00:00:00</div>
-            <div id="date">SYSTEM STARTING...</div>
-            <div id="signals">
-                <span id="wifi-signal">LINKING...</span>
+    <div id="log-container"></div>
+
+    <div class="main-interface">
+        <div class="clock-wrapper">
+            <svg class="energy-ring" width="320" height="320">
+                <circle id="progress-bar" class="ring-progress" cx="160" cy="160" r="140"></circle>
+            </svg>
+            <div style="text-align: center;">
+                <div id="time">00:00:00</div>
+                <div id="date" style="letter-spacing: 2px; font-size: 14px;">SYNCING...</div>
+                <div id="status" style="font-size: 12px; margin-top: 10px; opacity: 0.6;">SYSTEM: STABLE</div>
             </div>
-            <button id="play-btn">Initialize Audio</button>
-            <audio id="song" src="your-song.mp3" loop></audio>
         </div>
+        <button id="play-btn">INITIATE CORE AUDIO</button>
+        <audio id="song" src="your-song.mp3" loop></audio>
     </div>
 
     <script>
+        // 1. 系统日志功能
+        const logContainer = document.getElementById('log-container');
+        const logMessages = [
+            "Initializing neural link...",
+            "Encrypting data packets...",
+            "Syncing with global atomic clock...",
+            "Scanning for unauthorized access...",
+            "Teal protocol v3.0 active.",
+            "Optimizing core temperature...",
+            "Connection stable at 10.4ms."
+        ];
+
+        function addLog() {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const timestamp = new Date().toLocaleTimeString();
+            const msg = logMessages[Math.floor(Math.random() * logMessages.length)];
+            entry.innerText = `[${timestamp}] ${msg}`;
+            logContainer.prepend(entry);
+            if (logContainer.childNodes.length > 8) logContainer.lastChild.remove();
+        }
+        setInterval(addLog, 3000);
+
+        // 2. 鼠标粒子追踪交互
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Particle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.size = Math.random() * 3 + 1;
+                this.speedX = Math.random() * 2 - 1;
+                this.speedY = Math.random() * 2 - 1;
+                this.life = 1;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.life -= 0.01;
+            }
+            draw() {
+                ctx.fillStyle = `rgba(0, 242, 255, ${this.life})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        window.addEventListener('mousemove', (e) => {
+            for (let i = 0; i < 2; i++) {
+                particles.push(new Particle(e.x, e.y));
+            }
+        });
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+                if (particles[i].life <= 0) {
+                    particles.splice(i, 1);
+                    i--;
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        // 3. 基础时钟与能量环逻辑
         const timeEl = document.getElementById('time');
         const dateEl = document.getElementById('date');
-        const wifiSignalEl = document.getElementById('wifi-signal');
         const progressBar = document.getElementById('progress-bar');
-        const playBtn = document.getElementById('play-btn');
-        const song = document.getElementById('song');
-
         const CIRCUMFERENCE = 2 * Math.PI * 140;
 
         function updateClock() {
             const now = new Date();
-            const s = now.getSeconds();
-            
-            // 更新时间
             timeEl.innerText = now.toTimeString().split(' ')[0];
-            
-            // 更新日期
             dateEl.innerText = now.toDateString().toUpperCase();
-
-            // 创意：能量环随秒针转动
+            
+            const s = now.getSeconds();
             const offset = CIRCUMFERENCE - (s / 60) * CIRCUMFERENCE;
             progressBar.style.strokeDashoffset = offset;
-
-            // 每分钟开始时重置一下效果（避免过渡动画小跳变）
-            if (s === 0) {
-                progressBar.style.transition = 'none';
-                progressBar.style.strokeDashoffset = CIRCUMFERENCE;
-                setTimeout(() => progressBar.style.transition = 'stroke-dashoffset 1s linear', 50);
-            }
         }
+        setInterval(updateClock, 1000);
+        updateClock();
 
-        function updateSignals() {
-            if (navigator.connection) {
-                wifiSignalEl.innerText = `OS.SYS_NET_SPEED: ${navigator.connection.downlink} MBPS`;
-            }
-        }
-
+        // 音乐控制
+        const playBtn = document.getElementById('play-btn');
+        const song = document.getElementById('song');
         playBtn.addEventListener('click', () => {
             if (song.paused) {
                 song.play();
-                playBtn.innerText = "Mute Ambience";
+                playBtn.innerText = "HALT CORE AUDIO";
             } else {
                 song.pause();
-                playBtn.innerText = "Initialize Audio";
+                playBtn.innerText = "INITIATE CORE AUDIO";
             }
         });
-
-        setInterval(updateClock, 1000);
-        setInterval(updateSignals, 5000);
-        updateClock();
-        updateSignals();
     </script>
 </body>
 </html>
