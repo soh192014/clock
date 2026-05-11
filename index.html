@@ -21,12 +21,8 @@
 
         #canvas { position: absolute; top: 0; left: 0; z-index: 1; }
 
-        /* 右上角工具栏 */
         .tools {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 100;
+            position: absolute; top: 20px; right: 20px; z-index: 100;
         }
 
         .tool-btn {
@@ -38,6 +34,7 @@
             font-size: 12px;
             backdrop-filter: blur(5px);
             transition: 0.3s;
+            pointer-events: auto;
         }
 
         .tool-btn:hover { background: var(--teal); color: var(--bg); }
@@ -71,12 +68,17 @@
 
         #song-title { font-size: 10px; margin-top: 10px; opacity: 0.6; }
 
+        /* 系统日志样式 */
         #log-container {
             position: absolute; bottom: 20px; left: 20px;
-            width: 300px; height: 120px; font-size: 10px;
-            color: var(--dark-teal); overflow: hidden;
+            width: 350px; height: 150px; font-size: 11px;
+            color: #008080; overflow: hidden;
             display: flex; flex-direction: column-reverse;
+            z-index: 100;
+            pointer-events: none;
         }
+        .log-entry { margin-bottom: 4px; animation: flash 0.2s; }
+        @keyframes flash { from { color: white; } to { color: #008080; } }
     </style>
 </head>
 <body>
@@ -84,7 +86,7 @@
     <canvas id="canvas"></canvas>
 
     <div class="tools">
-        <button class="tool-btn" onclick="toggleFullScreen()">FULLSCREEN MODE</button>
+        <button class="tool-btn" onclick="toggleFullScreen()">[ FULLSCREEN MODE ]</button>
     </div>
 
     <div id="log-container"></div>
@@ -96,25 +98,35 @@
             </svg>
             <div style="text-align: center;">
                 <div id="time">00:00:00</div>
-                <div id="date" style="letter-spacing: 2px; font-size: 14px;">SYNCING...</div>
+                <div id="date" style="letter-spacing: 2px; font-size: 14px;">BOOTING SYSTEM...</div>
             </div>
         </div>
 
         <div id="controls">
             <button class="control-btn" id="play-btn">START CORE AUDIO</button>
             <button class="control-btn" id="next-btn">NEXT TRACK</button>
-            <div id="song-title">NO TRACK LOADED</div>
+            <div id="song-title">AUDIO SYSTEM READY</div>
         </div>
         
-        <audio id="song" loop></audio>
+        <audio id="song" loop preload="auto"></audio>
     </div>
 
     <script>
-        // --- 1. 歌曲库功能 ---
-        // 在这里添加你的新歌：只需在数组里增加对象
+        // --- 1. 日志系统 ---
+        const logBox = document.getElementById('log-container');
+        function addLog(msg, isError = false) {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            if(isError) div.style.color = '#ff4d4d';
+            div.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logBox.prepend(div);
+            if(logBox.childNodes.length > 10) logBox.lastChild.remove();
+        }
+
+        // --- 2. 歌曲库 (请务必确认文件名大小写) ---
         const playlist = [
-            { name: "Cyber Dreams", url: "song.mp3" },
-            { name: "Teal Protocol", url: "song1.mp3" }
+            { name: "Atlas Relax", url: "atlasaudio-relax-511892.mp3" },
+            { name: "Teal Protocol", url: "the_mountain-relax-508021 (1).mp3" }
         ];
         let currentTrackIndex = 0;
 
@@ -126,17 +138,29 @@
             const track = playlist[index];
             song.src = track.url;
             songTitle.innerText = `NOW PLAYING: ${track.name}`;
+            addLog(`LOADING TRACK: ${track.name}...`);
+            
+            // 监测加载错误
+            song.onerror = () => {
+                addLog(`ERROR: CANNOT FIND ${track.url}`, true);
+                songTitle.innerText = "FILE NOT FOUND ON SERVER";
+            };
         }
 
-        loadTrack(0); // 初始加载第一首歌
+        loadTrack(0);
 
         playBtn.addEventListener('click', () => {
             if (song.paused) {
-                song.play();
-                playBtn.innerText = "HALT AUDIO";
+                song.play().then(() => {
+                    playBtn.innerText = "HALT AUDIO";
+                    addLog("AUDIO STREAM ESTABLISHED.");
+                }).catch(err => {
+                    addLog("INTERACTION REQUIRED TO START AUDIO", true);
+                });
             } else {
                 song.pause();
                 playBtn.innerText = "START AUDIO";
+                addLog("AUDIO STREAM TERMINATED.");
             }
         });
 
@@ -147,18 +171,18 @@
             playBtn.innerText = "HALT AUDIO";
         });
 
-        // --- 2. 全屏切换功能 ---
+        // --- 3. 全屏功能 ---
         function toggleFullScreen() {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen();
+                addLog("FULLSCREEN MODE ENGAGED.");
             } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                }
+                document.exitFullscreen();
+                addLog("FULLSCREEN MODE TERMINATED.");
             }
         }
 
-        // --- (保留之前的粒子和时钟逻辑) ---
+        // --- 4. 时钟逻辑 ---
         const timeEl = document.getElementById('time');
         const dateEl = document.getElementById('date');
         const progressBar = document.getElementById('progress-bar');
@@ -173,8 +197,9 @@
         }
         setInterval(updateClock, 1000);
         updateClock();
+        addLog("SYSTEM CLOCK SYNCED.");
 
-        // 粒子背景 (简略版，逻辑同上)
+        // --- 5. 粒子背景 ---
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         let particles = [];
