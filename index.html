@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teal Future OS - Terminal</title>
+    <title>Teal Future OS - Elite</title>
     <style>
         :root {
             --teal: #00f2ff;
@@ -12,104 +12,80 @@
         }
 
         body, html {
-            margin: 0;
-            padding: 0;
+            margin: 0; padding: 0;
             background: var(--bg);
             color: var(--teal);
             font-family: 'Courier New', monospace;
-            overflow: hidden;
-            height: 100vh;
+            overflow: hidden; height: 100vh;
         }
 
-        /* 粒子背景画布 */
-        #canvas {
+        #canvas { position: absolute; top: 0; left: 0; z-index: 1; }
+
+        /* 右上角工具栏 */
+        .tools {
             position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 1;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
         }
+
+        .tool-btn {
+            background: rgba(0, 242, 255, 0.1);
+            border: 1px solid var(--teal);
+            color: var(--teal);
+            padding: 5px 15px;
+            cursor: pointer;
+            font-size: 12px;
+            backdrop-filter: blur(5px);
+            transition: 0.3s;
+        }
+
+        .tool-btn:hover { background: var(--teal); color: var(--bg); }
 
         .main-interface {
-            position: relative;
-            z-index: 10;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            pointer-events: none; /* 让鼠标事件穿透到画布 */
+            position: relative; z-index: 10;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            height: 100vh; pointer-events: none;
         }
 
         .clock-wrapper {
-            position: relative;
-            width: 350px;
-            height: 350px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            position: relative; width: 350px; height: 350px;
+            display: flex; justify-content: center; align-items: center;
             pointer-events: auto;
         }
 
-        /* 能量环 */
-        .energy-ring {
-            position: absolute;
-            transform: rotate(-90deg);
-            filter: drop-shadow(0 0 10px var(--teal));
-        }
-
-        .ring-progress {
-            fill: none;
-            stroke: var(--teal);
-            stroke-width: 2;
-            stroke-dasharray: 880;
-            stroke-dashoffset: 880;
-            transition: stroke-dashoffset 1s linear;
-        }
-
-        /* 新功能：侧边实时日志 */
-        #log-container {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            width: 300px;
-            height: 150px;
-            font-size: 10px;
-            color: var(--dark-teal);
-            overflow: hidden;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column-reverse;
-        }
-
-        .log-entry {
-            margin-bottom: 4px;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateX(-10px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
+        .energy-ring { position: absolute; transform: rotate(-90deg); filter: drop-shadow(0 0 10px var(--teal)); }
+        .ring-progress { fill: none; stroke: var(--teal); stroke-width: 2; stroke-dasharray: 880; stroke-dashoffset: 880; transition: stroke-dashoffset 1s linear; }
 
         #time { font-size: 64px; font-weight: bold; text-shadow: 0 0 20px var(--teal); }
         
-        #play-btn {
-            pointer-events: auto;
-            background: transparent;
-            color: var(--teal);
-            border: 1px solid var(--teal);
-            padding: 10px 20px;
-            margin-top: 30px;
-            cursor: pointer;
-            backdrop-filter: blur(5px);
+        #controls { pointer-events: auto; margin-top: 30px; text-align: center; }
+        
+        .control-btn {
+            background: transparent; border: 1px solid var(--teal);
+            color: var(--teal); padding: 10px 20px;
+            cursor: pointer; margin: 0 5px;
+            font-size: 12px;
         }
 
-        #play-btn:hover { background: rgba(0, 242, 255, 0.2); }
+        #song-title { font-size: 10px; margin-top: 10px; opacity: 0.6; }
+
+        #log-container {
+            position: absolute; bottom: 20px; left: 20px;
+            width: 300px; height: 120px; font-size: 10px;
+            color: var(--dark-teal); overflow: hidden;
+            display: flex; flex-direction: column-reverse;
+        }
     </style>
 </head>
 <body>
 
     <canvas id="canvas"></canvas>
+
+    <div class="tools">
+        <button class="tool-btn" onclick="toggleFullScreen()">FULLSCREEN MODE</button>
+    </div>
 
     <div id="log-container"></div>
 
@@ -121,92 +97,69 @@
             <div style="text-align: center;">
                 <div id="time">00:00:00</div>
                 <div id="date" style="letter-spacing: 2px; font-size: 14px;">SYNCING...</div>
-                <div id="status" style="font-size: 12px; margin-top: 10px; opacity: 0.6;">SYSTEM: STABLE</div>
             </div>
         </div>
-        <button id="play-btn">INITIATE CORE AUDIO</button>
-        <audio id="song" src="your-song.mp3" loop></audio>
+
+        <div id="controls">
+            <button class="control-btn" id="play-btn">START CORE AUDIO</button>
+            <button class="control-btn" id="next-btn">NEXT TRACK</button>
+            <div id="song-title">NO TRACK LOADED</div>
+        </div>
+        
+        <audio id="song" loop></audio>
     </div>
 
     <script>
-        // 1. 系统日志功能
-        const logContainer = document.getElementById('log-container');
-        const logMessages = [
-            "Initializing neural link...",
-            "Encrypting data packets...",
-            "Syncing with global atomic clock...",
-            "Scanning for unauthorized access...",
-            "Teal protocol v3.0 active.",
-            "Optimizing core temperature...",
-            "Connection stable at 10.4ms."
+        // --- 1. 歌曲库功能 ---
+        // 在这里添加你的新歌：只需在数组里增加对象
+        const playlist = [
+            { name: "Cyber Dreams", url: "song.mp3" },
+            { name: "Neon Sunset", url: "song2.mp3" },
+            { name: "Teal Protocol", url: "song3.mp3" }
         ];
+        let currentTrackIndex = 0;
 
-        function addLog() {
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            const timestamp = new Date().toLocaleTimeString();
-            const msg = logMessages[Math.floor(Math.random() * logMessages.length)];
-            entry.innerText = `[${timestamp}] ${msg}`;
-            logContainer.prepend(entry);
-            if (logContainer.childNodes.length > 8) logContainer.lastChild.remove();
-        }
-        setInterval(addLog, 3000);
+        const song = document.getElementById('song');
+        const songTitle = document.getElementById('song-title');
+        const playBtn = document.getElementById('play-btn');
 
-        // 2. 鼠标粒子追踪交互
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        let particles = [];
-
-        function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resize);
-        resize();
-
-        class Particle {
-            constructor(x, y) {
-                this.x = x;
-                this.y = y;
-                this.size = Math.random() * 3 + 1;
-                this.speedX = Math.random() * 2 - 1;
-                this.speedY = Math.random() * 2 - 1;
-                this.life = 1;
-            }
-            update() {
-                this.x += this.speedX;
-                this.y += this.speedY;
-                this.life -= 0.01;
-            }
-            draw() {
-                ctx.fillStyle = `rgba(0, 242, 255, ${this.life})`;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-            }
+        function loadTrack(index) {
+            const track = playlist[index];
+            song.src = track.url;
+            songTitle.innerText = `NOW PLAYING: ${track.name}`;
         }
 
-        window.addEventListener('mousemove', (e) => {
-            for (let i = 0; i < 2; i++) {
-                particles.push(new Particle(e.x, e.y));
+        loadTrack(0); // 初始加载第一首歌
+
+        playBtn.addEventListener('click', () => {
+            if (song.paused) {
+                song.play();
+                playBtn.innerText = "HALT AUDIO";
+            } else {
+                song.pause();
+                playBtn.innerText = "START AUDIO";
             }
         });
 
-        function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            for (let i = 0; i < particles.length; i++) {
-                particles[i].update();
-                particles[i].draw();
-                if (particles[i].life <= 0) {
-                    particles.splice(i, 1);
-                    i--;
+        document.getElementById('next-btn').addEventListener('click', () => {
+            currentTrackIndex = (currentTrackIndex + 1) % playlist.length;
+            loadTrack(currentTrackIndex);
+            song.play();
+            playBtn.innerText = "HALT AUDIO";
+        });
+
+        // --- 2. 全屏切换功能 ---
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
                 }
             }
-            requestAnimationFrame(animate);
         }
-        animate();
 
-        // 3. 基础时钟与能量环逻辑
+        // --- (保留之前的粒子和时钟逻辑) ---
         const timeEl = document.getElementById('time');
         const dateEl = document.getElementById('date');
         const progressBar = document.getElementById('progress-bar');
@@ -214,28 +167,24 @@
 
         function updateClock() {
             const now = new Date();
-            timeEl.innerText = now.toTimeString().split(' ')[0];
+            timeEl.innerText = now.toLocaleTimeString('en-GB');
             dateEl.innerText = now.toDateString().toUpperCase();
-            
             const s = now.getSeconds();
-            const offset = CIRCUMFERENCE - (s / 60) * CIRCUMFERENCE;
-            progressBar.style.strokeDashoffset = offset;
+            progressBar.style.strokeDashoffset = CIRCUMFERENCE - (s / 60) * CIRCUMFERENCE;
         }
         setInterval(updateClock, 1000);
         updateClock();
 
-        // 音乐控制
-        const playBtn = document.getElementById('play-btn');
-        const song = document.getElementById('song.mp3');
-        playBtn.addEventListener('click', () => {
-            if (song.paused) {
-                song.play();
-                playBtn.innerText = "HALT CORE AUDIO";
-            } else {
-                song.pause();
-                playBtn.innerText = "INITIATE CORE AUDIO";
-            }
-        });
+        // 粒子背景 (简略版，逻辑同上)
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        window.onresize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+        window.onresize();
+        class P { constructor(x,y){this.x=x;this.y=y;this.l=1;this.s=Math.random()*2;} update(){this.x+=Math.random()*2-1;this.y+=Math.random()*2-1;this.l-=0.01;} draw(){ctx.fillStyle=`rgba(0,242,255,${this.l})`;ctx.beginPath();ctx.arc(this.x,this.y,this.s,0,7);ctx.fill();}}
+        window.onmousemove = (e) => { for(let i=0;i<2;i++) particles.push(new P(e.x,e.y)) };
+        function anim() { ctx.clearRect(0,0,canvas.width,canvas.height); particles.forEach((p,i)=>{p.update();p.draw();if(p.l<=0)particles.splice(i,1)}); requestAnimationFrame(anim); }
+        anim();
     </script>
 </body>
 </html>
