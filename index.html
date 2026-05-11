@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teal Future OS - Elite</title>
+    <title>Teal Future OS - Massive</title>
     <style>
         :root {
             --teal: #00f2ff;
@@ -21,6 +21,7 @@
 
         #canvas { position: absolute; top: 0; left: 0; z-index: 1; }
 
+        /* 右上角工具栏 */
         .tools {
             position: absolute; top: 20px; right: 20px; z-index: 100;
         }
@@ -46,32 +47,77 @@
             height: 100vh; pointer-events: none;
         }
 
+        /* --- 修改：圆圈包装器显著放大 --- */
         .clock-wrapper {
-            position: relative; width: 350px; height: 350px;
+            position: relative; 
+            width: 500px; /* 从 350px 放大 */
+            height: 500px; /* 从 350px 放大 */
             display: flex; justify-content: center; align-items: center;
             pointer-events: auto;
         }
 
-        .energy-ring { position: absolute; transform: rotate(-90deg); filter: drop-shadow(0 0 10px var(--teal)); }
-        .ring-progress { fill: none; stroke: var(--teal); stroke-width: 2; stroke-dasharray: 880; stroke-dashoffset: 880; transition: stroke-dashoffset 1s linear; }
+        /* --- 修改：能量环 SVG 放大 --- */
+        .energy-ring { 
+            position: absolute; 
+            transform: rotate(-90deg); 
+            filter: drop-shadow(0 0 15px var(--teal)); /* 增强光晕 */
+        }
 
-        #time { font-size: 64px; font-weight: bold; text-shadow: 0 0 20px var(--teal); }
+        /* --- 修改：调整进度条和背景环参数 --- */
+        .ring-bg {
+            fill: none;
+            stroke: rgba(0, 77, 77, 0.2);
+            stroke-width: 4; /* 加粗一点 */
+        }
+
+        .ring-progress { 
+            fill: none; 
+            stroke: var(--teal); 
+            stroke-width: 4; /* 加粗一点 */
+            stroke-dasharray: 1414; /* 新的周长：2 * PI * 225 */
+            stroke-dashoffset: 1414; 
+            transition: stroke-dashoffset 1s linear; 
+        }
+
+        /* --- 修改：时钟文字放大 --- */
+        #time { font-size: 96px; /* 从 64px 放大 */ font-weight: bold; text-shadow: 0 0 25px var(--teal); }
         
-        #controls { pointer-events: auto; margin-top: 30px; text-align: center; }
+        /* 音频控制区域 */
+        #controls { pointer-events: auto; margin-top: 20px; text-align: center; }
         
+        /* --- 修改：控制按钮样式稍微优化 --- */
         .control-btn {
             background: transparent; border: 1px solid var(--teal);
             color: var(--teal); padding: 10px 20px;
-            cursor: pointer; margin: 0 5px;
+            cursor: pointer; margin: 0 8px;
             font-size: 12px;
+            transition: 0.3s;
         }
+        .control-btn:hover { background: rgba(0, 242, 255, 0.1); }
 
-        #song-title { font-size: 10px; margin-top: 10px; opacity: 0.6; }
+        #song-title { font-size: 11px; margin-top: 10px; opacity: 0.6; letter-spacing: 1px; }
+
+        /* --- 新功能样式：音量条 --- */
+        #visualizer-container {
+            margin-top: 20px;
+            width: 300px;
+            height: 10px;
+            border: 1px solid rgba(0, 242, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        #volume-bar {
+            height: 100%;
+            background: var(--teal);
+            width: 0%; /* 初始宽度 */
+            transition: width 0.1s linear; /* 平滑过渡 */
+            filter: drop-shadow(0 0 5px var(--teal));
+        }
 
         /* 系统日志样式 */
         #log-container {
             position: absolute; bottom: 20px; left: 20px;
-            width: 350px; height: 150px; font-size: 11px;
+            width: 350px; height: 120px; font-size: 11px;
             color: #008080; overflow: hidden;
             display: flex; flex-direction: column-reverse;
             z-index: 100;
@@ -93,12 +139,13 @@
 
     <div class="main-interface">
         <div class="clock-wrapper">
-            <svg class="energy-ring" width="320" height="320">
-                <circle id="progress-bar" class="ring-progress" cx="160" cy="160" r="140"></circle>
+            <svg class="energy-ring" width="480" height="480">
+                <circle class="ring-bg" cx="240" cy="240" r="225"></circle>
+                <circle id="progress-bar" class="ring-progress" cx="240" cy="240" r="225"></circle>
             </svg>
             <div style="text-align: center;">
                 <div id="time">00:00:00</div>
-                <div id="date" style="letter-spacing: 2px; font-size: 14px;">BOOTING SYSTEM...</div>
+                <div id="date" style="letter-spacing: 2px; font-size: 16px; margin-top: 10px;">BOOTING SYSTEM...</div>
             </div>
         </div>
 
@@ -106,13 +153,19 @@
             <button class="control-btn" id="play-btn">START CORE AUDIO</button>
             <button class="control-btn" id="next-btn">NEXT TRACK</button>
             <div id="song-title">AUDIO SYSTEM READY</div>
+            
+            <center>
+                <div id="visualizer-container">
+                    <div id="volume-bar"></div>
+                </div>
+            </center>
         </div>
         
-        <audio id="song" loop preload="auto"></audio>
+        <audio id="song" loop preload="auto" crossOrigin="anonymous"></audio>
     </div>
 
     <script>
-        // --- 1. 日志系统 ---
+        // --- 1. 系统日志 ---
         const logBox = document.getElementById('log-container');
         function addLog(msg, isError = false) {
             const div = document.createElement('div');
@@ -120,10 +173,10 @@
             if(isError) div.style.color = '#ff4d4d';
             div.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
             logBox.prepend(div);
-            if(logBox.childNodes.length > 10) logBox.lastChild.remove();
+            if(logBox.childNodes.length > 8) logBox.lastChild.remove();
         }
 
-        // --- 2. 歌曲库 (请务必确认文件名大小写) ---
+        // --- 2. 歌曲库 (保持你的文件名不变) ---
         const playlist = [
             { name: "Atlas Relax", url: "atlasaudio-relax-511892.mp3" },
             { name: "Teal Protocol", url: "the_mountain-relax-508021 (1).mp3" }
@@ -133,6 +186,53 @@
         const song = document.getElementById('song');
         const songTitle = document.getElementById('song-title');
         const playBtn = document.getElementById('play-btn');
+        const volumeBar = document.getElementById('volume-bar');
+
+        // --- 新功能的核心：Web Audio API 音量可视化 ---
+        let audioContext, analyser, dataArray, source;
+        let isVisualizerSetup = false;
+
+        function setupVisualizer() {
+            if (isVisualizerSetup) return;
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                source = audioContext.createMediaElementSource(song);
+                source.connect(analyser);
+                analyser.connect(audioContext.destination);
+                analyser.fftSize = 256; // 设置精细度
+                const bufferLength = analyser.frequencyBinCount;
+                dataArray = new Uint8Array(bufferLength);
+                isVisualizerSetup = true;
+                addLog("AUDIO VISUALIZER INITIALIZED.");
+                drawVisualizer();
+            } catch (e) {
+                addLog("VISUALIZER ERROR: REQUIRES HTTP(S)", true);
+                // 注意：如果是在本地直接双击打开 HTML，Web Audio API 可能无法工作。
+                // 必须在 GitHub Pages (HTTP) 上运行。
+            }
+        }
+
+        function drawVisualizer() {
+            if (!isVisualizerSetup || song.paused) {
+                volumeBar.style.width = "0%";
+                if(song.paused) return; // 停止循环
+            }
+
+            requestAnimationFrame(drawVisualizer);
+            analyser.getByteFrequencyData(dataArray);
+
+            // 计算音量（这里使用频率数据的平均值作为音量）
+            let values = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                values += dataArray[i];
+            }
+            const average = values / dataArray.length;
+            
+            // 将 0-255 的平均值转换为 0-100 的百分比
+            const volumePercentage = (average / 128) * 100;
+            volumeBar.style.width = Math.min(volumePercentage, 100) + "%";
+        }
 
         function loadTrack(index) {
             const track = playlist[index];
@@ -140,10 +240,9 @@
             songTitle.innerText = `NOW PLAYING: ${track.name}`;
             addLog(`LOADING TRACK: ${track.name}...`);
             
-            // 监测加载错误
             song.onerror = () => {
                 addLog(`ERROR: CANNOT FIND ${track.url}`, true);
-                songTitle.innerText = "FILE NOT FOUND ON SERVER";
+                songTitle.innerText = "FILE NOT FOUND (CHECK CAPITALS)";
             };
         }
 
@@ -151,9 +250,14 @@
 
         playBtn.addEventListener('click', () => {
             if (song.paused) {
+                // 浏览器要求用户交互后才能启动 AudioContext
+                if (!isVisualizerSetup) setupVisualizer(); 
+                if (audioContext && audioContext.state === 'suspended') audioContext.resume();
+
                 song.play().then(() => {
                     playBtn.innerText = "HALT AUDIO";
                     addLog("AUDIO STREAM ESTABLISHED.");
+                    drawVisualizer(); // 开始绘制
                 }).catch(err => {
                     addLog("INTERACTION REQUIRED TO START AUDIO", true);
                 });
@@ -161,13 +265,17 @@
                 song.pause();
                 playBtn.innerText = "START AUDIO";
                 addLog("AUDIO STREAM TERMINATED.");
+                // drawVisualizer 会因为 song.paused 自动停止
             }
         });
 
         document.getElementById('next-btn').addEventListener('click', () => {
             currentTrackIndex = (currentTrackIndex + 1) % playlist.length;
             loadTrack(currentTrackIndex);
-            song.play();
+            song.play().then(() => {
+                if (audioContext && audioContext.state === 'suspended') audioContext.resume();
+                drawVisualizer();
+            });
             playBtn.innerText = "HALT AUDIO";
         });
 
@@ -186,13 +294,16 @@
         const timeEl = document.getElementById('time');
         const dateEl = document.getElementById('date');
         const progressBar = document.getElementById('progress-bar');
-        const CIRCUMFERENCE = 2 * Math.PI * 140;
+        const CIRCUMFERENCE = 1414; // 新的周长
 
         function updateClock() {
             const now = new Date();
             timeEl.innerText = now.toLocaleTimeString('en-GB');
             dateEl.innerText = now.toDateString().toUpperCase();
             const s = now.getSeconds();
+            // 每秒重置时的平滑处理
+            if (s === 0) progressBar.style.transition = 'none';
+            else progressBar.style.transition = 'stroke-dashoffset 1s linear';
             progressBar.style.strokeDashoffset = CIRCUMFERENCE - (s / 60) * CIRCUMFERENCE;
         }
         setInterval(updateClock, 1000);
