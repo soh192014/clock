@@ -22,7 +22,6 @@
 
         #bg-canvas { position: absolute; top: 0; left: 0; z-index: 1; }
 
-        /* 全屏交互优化 */
         .tools {
             position: absolute; top: 30px; right: 30px; z-index: 100;
         }
@@ -40,24 +39,15 @@
             pointer-events: auto;
         }
 
-        .tool-btn:hover {
-            background: var(--teal);
-            color: var(--bg);
-            box-shadow: 0 0 25px var(--teal);
-        }
+        .tool-btn:hover { background: var(--teal); color: var(--bg); box-shadow: 0 0 25px var(--teal); }
 
-        /* 智能日志反馈窗口 */
         #log-window {
             position: absolute; bottom: 30px; left: 30px;
             width: 380px; height: 150px;
             background: rgba(0, 242, 255, 0.02);
             border-left: 2px solid var(--teal);
-            padding: 15px;
-            font-size: 12px;
-            color: var(--teal);
-            overflow: hidden;
-            z-index: 100;
-            pointer-events: none;
+            padding: 15px; font-size: 12px; color: var(--teal);
+            overflow: hidden; z-index: 100; pointer-events: none;
             display: flex; flex-direction: column-reverse;
         }
 
@@ -71,7 +61,6 @@
             height: 100vh; pointer-events: none;
         }
 
-        /* 巨型圆圈 */
         .clock-wrapper {
             position: relative; 
             width: 580px; height: 580px; 
@@ -87,203 +76,4 @@
 
         .ring-progress { 
             fill: none; stroke: var(--teal); stroke-width: 5; 
-            stroke-dasharray: 1727; stroke-dashoffset: 1727; 
-            transition: stroke-dashoffset 1s linear; 
-        }
-
-        #time { font-size: 110px; font-weight: bold; text-shadow: 0 0 30px var(--teal); }
-        #date { font-size: 18px; letter-spacing: 5px; opacity: 0.6; margin-top: 15px; }
-
-        /* 波形进度条 */
-        #viz-container {
-            margin-top: 40px;
-            width: 500px;
-            height: 100px;
-            pointer-events: auto;
-        }
-
-        /* --- 修改：按钮区域往下放了 50 像素 --- */
-        #controls { 
-            pointer-events: auto; 
-            margin-top: 70px; /* 从 20px 增加到 70px */
-            text-align: center; 
-        }
-
-        .control-btn {
-            background: transparent; border: 1px solid var(--teal);
-            color: var(--teal); padding: 12px 25px; cursor: pointer;
-            margin: 0 10px; font-size: 12px; text-transform: uppercase;
-            transition: 0.3s;
-        }
-        .control-btn:hover { background: rgba(0, 242, 255, 0.2); }
-    </style>
-</head>
-<body>
-
-    <canvas id="bg-canvas"></canvas>
-
-    <div id="log-window"></div>
-
-    <div class="tools">
-        <button class="tool-btn" id="fs-toggle" onclick="toggleFullScreen()">[ INITIALIZE FULLSCREEN ]</button>
-    </div>
-
-    <div class="main-interface">
-        <div class="clock-wrapper">
-            <svg class="energy-ring" width="580" height="580">
-                <circle cx="290" cy="290" r="275" fill="none" stroke="rgba(0,242,255,0.05)" stroke-width="2"></circle>
-                <circle id="progress-bar" class="ring-progress" cx="290" cy="290" r="275"></circle>
-            </svg>
-            <div style="text-align: center;">
-                <div id="time">00:00:00</div>
-                <div id="date">SYSTEM LOADING...</div>
-            </div>
-        </div>
-
-        <div id="viz-container">
-            <canvas id="wave-canvas"></canvas>
-        </div>
-
-        <div id="controls">
-            <button class="control-btn" id="play-btn">Connect Core</button>
-            <button class="control-btn" id="next-btn">Next Track</button>
-            <div id="status-info" style="font-size: 10px; margin-top: 15px; opacity: 0.4;">OS STATUS: STANDBY</div>
-        </div>
-        
-        <audio id="song" loop crossOrigin="anonymous"></audio>
-    </div>
-
-    <script>
-        const logWindow = document.getElementById('log-window');
-        function pushLog(msg) {
-            const line = document.createElement('div');
-            line.className = 'log-line';
-            line.innerText = `> ${new Date().toLocaleTimeString()}: ${msg}`;
-            logWindow.prepend(line);
-            if(logWindow.childNodes.length > 8) logWindow.lastChild.remove();
-        }
-
-        const playlist = [
-            { n: "Atlas Relax", u: "atlasaudio-relax-511892.mp3" },
-            { n: "Mountain Relax", u: "the_mountain-relax-508021 (1).mp3" }
-        ];
-        let idx = 0;
-
-        const audio = document.getElementById('song');
-        const waveCanvas = document.getElementById('wave-canvas');
-        const waveCtx = waveCanvas.getContext('2d');
-        const playBtn = document.getElementById('play-btn');
-
-        function resizeViz() {
-            waveCanvas.width = waveCanvas.offsetWidth;
-            waveCanvas.height = waveCanvas.offsetHeight;
-        }
-        window.onresize = resizeViz;
-        resizeViz();
-
-        let aCtx, analyser, data;
-        function setupAudio() {
-            if (aCtx) return;
-            aCtx = new (window.AudioContext || window.webkitAudioContext)();
-            analyser = aCtx.createAnalyser();
-            const source = aCtx.createMediaElementSource(audio);
-            source.connect(analyser);
-            analyser.connect(aCtx.destination);
-            analyser.fftSize = 256;
-            data = new Uint8Array(analyser.frequencyBinCount);
-            pushLog("AUDIO ANALYSER NODE CONNECTED.");
-            renderWave();
-        }
-
-        function renderWave() {
-            requestAnimationFrame(renderWave);
-            const w = waveCanvas.width;
-            const h = waveCanvas.height;
-            waveCtx.clearRect(0, 0, w, h);
-
-            if (!audio.paused) analyser.getByteFrequencyData(data);
-            else data.fill(0);
-
-            const progress = audio.duration ? audio.currentTime / audio.duration : 0;
-            const progressX = w * progress;
-            const barWidth = w / data.length;
-
-            for (let i = 0; i < data.length; i++) {
-                const barHeight = (data[i] / 255) * h * 0.8;
-                const x = i * barWidth;
-                
-                if (x < progressX) {
-                    waveCtx.fillStyle = '#00f2ff';
-                    waveCtx.shadowBlur = 10;
-                    waveCtx.shadowColor = '#00f2ff';
-                } else {
-                    waveCtx.fillStyle = '#002626';
-                    waveCtx.shadowBlur = 0;
-                }
-                waveCtx.fillRect(x, h - barHeight - 2, barWidth - 2, barHeight + 2);
-            }
-        }
-
-        playBtn.onclick = () => {
-            setupAudio();
-            if(aCtx.state === 'suspended') aCtx.resume();
-            if(audio.paused) {
-                audio.play();
-                playBtn.innerText = "Disconnect";
-                pushLog("CORE AUDIO STREAM STARTED.");
-            } else {
-                audio.pause();
-                playBtn.innerText = "Connect Core";
-                pushLog("CORE AUDIO STREAM PAUSED.");
-            }
-        };
-
-        document.getElementById('next-btn').onclick = () => {
-            idx = (idx + 1) % playlist.length;
-            audio.src = playlist[idx].u;
-            document.getElementById('status-info').innerText = `OS.DATA_TRACK: ${playlist[idx].n}`;
-            pushLog(`SWITCHING TO: ${playlist[idx].n}`);
-            audio.play();
-        };
-
-        function toggleFullScreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen();
-                document.getElementById('fs-toggle').innerText = "[ EXIT FULLSCREEN ]";
-                pushLog("USER ENGAGED FULLSCREEN MODE.");
-            } else {
-                document.exitFullscreen();
-                document.getElementById('fs-toggle').innerText = "[ INITIALIZE FULLSCREEN ]";
-                pushLog("EXITING FULLSCREEN MODE.");
-            }
-        }
-
-        const prog = document.getElementById('progress-bar');
-        setInterval(() => {
-            const now = new Date();
-            document.getElementById('time').innerText = now.toLocaleTimeString('en-GB');
-            document.getElementById('date').innerText = now.toDateString().toUpperCase();
-            prog.style.strokeDashoffset = 1727 - (now.getSeconds() / 60) * 1727;
-        }, 1000);
-
-        const bgCvs = document.getElementById('bg-canvas');
-        const bgCtx = bgCvs.getContext('2d');
-        let ps = [];
-        bgCvs.width = window.innerWidth; bgCvs.height = window.innerHeight;
-        window.onmousemove = (e) => { ps.push({x:e.x, y:e.y, l:1}) };
-        function anim() {
-            bgCtx.clearRect(0,0,bgCvs.width,bgCvs.height);
-            ps.forEach((p,i) => {
-                p.l -= 0.02; bgCtx.fillStyle = `rgba(0,242,255,${p.l})`;
-                bgCtx.fillRect(p.x, p.y, 2, 2);
-                if(p.l<=0) ps.splice(i,1);
-            });
-            requestAnimationFrame(anim);
-        }
-        anim();
-        
-        pushLog("SYSTEM INITIALIZED...");
-        pushLog("WAITING FOR NEURAL LINK...");
-    </script>
-</body>
-</html>
+            stroke-dasharray: 1727; stroke
