@@ -75,4 +75,206 @@
         #viz-container { width: 480px; height: 80px; pointer-events: auto; }
 
         #controls { pointer-events: auto; text-align: center; }
-        #status-info { font-size: 10px; margin-bottom: 25px
+        #status-info { font-size: 10px; margin-bottom: 25px; letter-spacing: 2px; opacity: 0.5; }
+        .control-btn {
+            background: transparent; border: 1px solid var(--teal);
+            color: var(--teal); padding: 12px 25px; cursor: pointer;
+            margin: 0 10px; font-size: 11px; text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+
+    <div id="status-bar">
+        <div class="stat-item"><div class="dot"></div><span id="wifi-signal">WiFi: SCANNING...</span></div>
+        <div class="stat-item"><div class="dot"></div><span id="location-text">LOC: ACQUIRING...</span></div>
+    </div>
+
+    <div id="log-window"></div>
+
+    <div class="tools">
+        <button class="tool-btn" onclick="toggleFullScreen()">[ FULLSCREEN ]</button>
+    </div>
+
+    <div class="main-interface">
+        <div class="clock-wrapper">
+            <svg class="energy-ring" width="560" height="560">
+                <circle cx="280" cy="280" r="270" fill="none" stroke="rgba(0,242,255,0.05)" stroke-width="2"></circle>
+                <circle id="progress-bar" class="ring-progress" cx="280" cy="280" r="270"></circle>
+            </svg>
+            <div style="text-align: center;">
+                <div id="time">00:00:00</div>
+                <div id="date">SYSTEM LOADING...</div>
+            </div>
+        </div>
+
+        <div id="viz-container"><canvas id="wave-canvas"></canvas></div>
+
+        <div id="controls">
+            <div id="status-info">DATA_CORE_READY</div>
+            <button class="control-btn" id="play-btn">Connect Core</button>
+            <button class="control-btn" id="next-btn">Next Track</button>
+        </div>
+        
+        <audio id="song" loop crossOrigin="anonymous"></audio>
+    </div>
+
+    <script>
+        const logWindow = document.getElementById('log-window');
+        function pushLog(msg) {
+            const line = document.createElement('div');
+            line.className = 'log-line';
+            line.innerText = `> ${new Date().toLocaleTimeString()}: ${msg}`;
+            logWindow.prepend(line);
+            if(logWindow.childNodes.length > 8) logWindow.lastChild.remove();
+        }
+
+        function updateLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    const lat = pos.coords.latitude.toFixed(2);
+                    const lon = pos.coords.longitude.toFixed(2);
+                    document.getElementById('location-text').innerText = `LOC: ${lat}N, ${lon}E`;
+                    pushLog(`GEO-SYNC: LAT ${lat} / LON ${lon}`);
+                }, (err) => {
+                    document.getElementById('location-text').innerText = "LOC: ACCESS DENIED";
+                });
+            }
+        }
+
+        function updateSignals() {
+            const wifiEl = document.getElementById('wifi-signal');
+            if (navigator.connection) {
+                const speed = navigator.connection.downlink;
+                wifiEl.innerText = `WiFi: ${speed} Mbps`;
+            }
+        }
+
+        updateLocation();
+        setInterval(updateSignals, 5000);
+
+        // 播放列表（已修复逗号和空格编码）
+        const playlist = [
+            { n: "Atlas Relax", u: "atlasaudio-relax-511892.mp3" },
+            { n: "Mountain Relax", u: "the_mountain-relax-508021 (1).mp3" },
+            { n: "Fire Aura", u: "02.%20Fire%20Aura.mp3" }
+        ];
+        
+        let idx = 0;
+        const audio = document.getElementById('song');
+        const waveCanvas = document.getElementById('wave-canvas');
+        const waveCtx = waveCanvas.getContext('2d');
+
+        function resizeViz() {
+            waveCanvas.width = waveCanvas.offsetWidth;
+            waveCanvas.height = waveCanvas.offsetHeight;
+        }
+        window.onresize = resizeViz;
+        resizeViz();
+
+        let aCtx, analyser, data;
+        function setupAudio() {
+            if (aCtx) return;
+            aCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = aCtx.createAnalyser();
+            const source = aCtx.createMediaElementSource(audio);
+            source.connect(analyser);
+            analyser.connect(aCtx.destination);
+            analyser.fftSize = 128;
+            data = new Uint8Array(analyser.frequencyBinCount);
+            renderWave();
+        }
+
+        function renderWave() {
+            requestAnimationFrame(renderWave);
+            const w = waveCanvas.width; const h = waveCanvas.height;
+            waveCtx.clearRect(0, 0, w, h);
+            if (!audio.paused) analyser.getByteFrequencyData(data);
+            else data.fill(0);
+            const progress = audio.duration ? audio.currentTime / audio.duration : 0;
+            const progressX = w * progress;
+            const barWidth = w / data.length;
+            for (let i = 0; i < data.length; i++) {
+                const barHeight = (data[i] / 255) * h * 0.8;
+                const x = i * barWidth;
+                waveCtx.fillStyle = x < progressX ? '#00f2ff' : '#002626';
+                if(x < progressX) waveCtx.shadowBlur = 10; else waveCtx.shadowBlur = 0;
+                waveCtx.fillRect(x, h - barHeight - 2, barWidth - 2, barHeight + 2);
+            }
+        }
+
+        document.getElementById('play-btn').onclick = () => {
+            setupAudio();
+            if(aCtx.state === 'suspended') aCtx.resume();
+            if(audio.paused) {
+                audio.play();
+                document.getElementById('play-btn').innerText = "Disconnect";
+                pushLog("CORE DATA STREAMING.");
+            } else {
+                audio.pause();
+                document.getElementById('play-btn').innerText = "Connect Core";
+                pushLog("CORE DATA PAUSED.");
+            }
+        };
+
+        document.getElementById('next-btn').onclick = () => {
+            idx = (idx + 1) % playlist.length;
+            audio.src = playlist[idx].u;
+            document.getElementById('status-info').innerText = `OS.DATA_STREAM: ${playlist[idx].n}`;
+            pushLog(`MOUNTING: ${playlist[idx].n}`);
+            audio.play();
+        };
+
+        const prog = document.getElementById('progress-bar');
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('time').innerText = now.toLocaleTimeString('en-GB');
+            document.getElementById('date').innerText = now.toDateString().toUpperCase();
+            prog.style.strokeDashoffset = 1696 - (now.getSeconds() / 60) * 1696;
+        }, 1000);
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else document.exitFullscreen();
+        }
+
+        // 背景粒子引擎
+        const bgCvs = document.getElementById('bg-canvas');
+        const bgCtx = bgCvs.getContext('2d');
+        let ps = [];
+        bgCvs.width = window.innerWidth; bgCvs.height = window.innerHeight;
+
+        const createParticles = (e) => {
+            const x = (e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX);
+            const y = (e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY);
+            for(let i=0; i<15; i++) {
+                ps.push({
+                    x: x, y: y, l: 1.5, 
+                    vX: (Math.random() - 0.5) * 3, 
+                    vY: (Math.random() - 0.5) * 3
+                });
+            }
+        };
+
+        window.onmousemove = createParticles;
+        window.ontouchmove = createParticles;
+
+        function anim() {
+            bgCtx.clearRect(0,0,bgCvs.width,bgCvs.height);
+            ps.forEach((p,i) => { 
+                p.l -= 0.02; 
+                p.x += p.vX; p.y += p.vY;
+                bgCtx.fillStyle = `rgba(0,242,255,${p.l})`; 
+                bgCtx.fillRect(p.x, p.y, 2, 2); 
+                if(p.l<=0) ps.splice(i,1); 
+            });
+            requestAnimationFrame(anim);
+        }
+        anim();
+        pushLog("SYSTEM SYNC READY.");
+    </script>
+</body>
+</html>
+
