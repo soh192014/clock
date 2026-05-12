@@ -31,15 +31,11 @@
             border: 1px solid var(--teal);
             color: var(--teal);
             padding: 10px 20px;
-            cursor: pointer;
-            font-size: 14px;
+            cursor: pointer; font-size: 14px;
             letter-spacing: 2px;
             box-shadow: 0 0 10px rgba(0, 242, 255, 0.2);
-            transition: 0.4s;
-            pointer-events: auto;
+            transition: 0.4s; pointer-events: auto;
         }
-
-        .tool-btn:hover { background: var(--teal); color: var(--bg); box-shadow: 0 0 25px var(--teal); }
 
         #log-window {
             position: absolute; bottom: 30px; left: 30px;
@@ -54,18 +50,25 @@
         .log-line { margin-bottom: 6px; animation: fadeIn 0.3s ease; opacity: 0.7; }
         @keyframes fadeIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 0.7; transform: translateX(0); } }
 
+        /* 使用 Flex 布局让所有元素均匀分布 */
         .main-interface {
             position: relative; z-index: 10;
             display: flex; flex-direction: column;
-            justify-content: center; align-items: center;
-            height: 100vh; pointer-events: none;
+            justify-content: space-around; /* 关键：让元素在垂直方向均匀拉开 */
+            align-items: center;
+            height: 100vh; width: 100%;
+            padding: 40px 0; /* 增加上下安全间距 */
+            box-sizing: border-box;
+            pointer-events: none;
         }
 
+        /* 巨型圆圈容器 */
         .clock-wrapper {
             position: relative; 
             width: 580px; height: 580px; 
             display: flex; justify-content: center; align-items: center;
             pointer-events: auto;
+            flex-shrink: 0;
         }
 
         .energy-ring { 
@@ -76,4 +79,207 @@
 
         .ring-progress { 
             fill: none; stroke: var(--teal); stroke-width: 5; 
-            stroke-dasharray: 1727; stroke
+            stroke-dasharray: 1727; stroke-dashoffset: 1727; 
+            transition: stroke-dashoffset 1s linear; 
+        }
+
+        #time { font-size: 110px; font-weight: bold; text-shadow: 0 0 30px var(--teal); }
+        #date { font-size: 18px; letter-spacing: 5px; opacity: 0.6; margin-top: 15px; }
+
+        /* 波形进度条容器 */
+        #viz-container {
+            width: 500px;
+            height: 80px;
+            pointer-events: auto;
+            flex-shrink: 0;
+        }
+
+        #controls { 
+            pointer-events: auto; 
+            text-align: center; 
+            flex-shrink: 0;
+        }
+
+        /* 歌曲信息上移到按钮上方 */
+        #status-info {
+            font-size: 11px;
+            margin-bottom: 25px; /* 增加与按钮的间距 */
+            letter-spacing: 1px;
+            text-shadow: 0 0 5px var(--teal);
+            opacity: 0.8;
+        }
+
+        .control-btn {
+            background: transparent; border: 1px solid var(--teal);
+            color: var(--teal); padding: 12px 25px; cursor: pointer;
+            margin: 0 10px; font-size: 12px; text-transform: uppercase;
+            transition: 0.3s;
+        }
+        .control-btn:hover { background: rgba(0, 242, 255, 0.2); box-shadow: 0 0 15px var(--teal); }
+    </style>
+</head>
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+    <div id="log-window"></div>
+
+    <div class="tools">
+        <button class="tool-btn" id="fs-toggle" onclick="toggleFullScreen()">[ INITIALIZE FULLSCREEN ]</button>
+    </div>
+
+    <div class="main-interface">
+        <div class="clock-wrapper">
+            <svg class="energy-ring" width="580" height="580">
+                <circle cx="290" cy="290" r="275" fill="none" stroke="rgba(0,242,255,0.05)" stroke-width="2"></circle>
+                <circle id="progress-bar" class="ring-progress" cx="290" cy="290" r="275"></circle>
+            </svg>
+            <div style="text-align: center;">
+                <div id="time">00:00:00</div>
+                <div id="date">LINKING...</div>
+            </div>
+        </div>
+
+        <div id="viz-container">
+            <canvas id="wave-canvas"></canvas>
+        </div>
+
+        <div id="controls">
+            <div id="status-info">OS.TRACK_DATA: STANDBY</div>
+            <button class="control-btn" id="play-btn">Connect Core</button>
+            <button class="control-btn" id="next-btn">Next Track</button>
+        </div>
+        
+        <audio id="song" loop crossOrigin="anonymous"></audio>
+    </div>
+
+    <script>
+        const logWindow = document.getElementById('log-window');
+        function pushLog(msg) {
+            const line = document.createElement('div');
+            line.className = 'log-line';
+            line.innerText = `> ${new Date().toLocaleTimeString()}: ${msg}`;
+            logWindow.prepend(line);
+            if(logWindow.childNodes.length > 8) logWindow.lastChild.remove();
+        }
+
+        const playlist = [
+            { n: "Atlas Relax", u: "atlasaudio-relax-511892.mp3" },
+            { n: "Mountain Relax", u: "the_mountain-relax-508021 (1).mp3" }
+        ];
+        let idx = 0;
+
+        const audio = document.getElementById('song');
+        const waveCanvas = document.getElementById('wave-canvas');
+        const waveCtx = waveCanvas.getContext('2d');
+        const playBtn = document.getElementById('play-btn');
+
+        function resizeViz() {
+            waveCanvas.width = waveCanvas.offsetWidth;
+            waveCanvas.height = waveCanvas.offsetHeight;
+        }
+        window.onresize = resizeViz;
+        resizeViz();
+
+        let aCtx, analyser, data;
+        function setupAudio() {
+            if (aCtx) return;
+            aCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = aCtx.createAnalyser();
+            const source = aCtx.createMediaElementSource(audio);
+            source.connect(analyser);
+            analyser.connect(aCtx.destination);
+            analyser.fftSize = 256;
+            data = new Uint8Array(analyser.frequencyBinCount);
+            pushLog("NEURAL LINK ESTABLISHED.");
+            renderWave();
+        }
+
+        function renderWave() {
+            requestAnimationFrame(renderWave);
+            const w = waveCanvas.width;
+            const h = waveCanvas.height;
+            waveCtx.clearRect(0, 0, w, h);
+
+            if (!audio.paused) analyser.getByteFrequencyData(data);
+            else data.fill(0);
+
+            const progress = audio.duration ? audio.currentTime / audio.duration : 0;
+            const progressX = w * progress;
+            const barWidth = w / data.length;
+
+            for (let i = 0; i < data.length; i++) {
+                const barHeight = (data[i] / 255) * h * 0.8;
+                const x = i * barWidth;
+                
+                if (x < progressX) {
+                    waveCtx.fillStyle = '#00f2ff';
+                    waveCtx.shadowBlur = 12;
+                    waveCtx.shadowColor = '#00f2ff';
+                } else {
+                    waveCtx.fillStyle = '#002626';
+                    waveCtx.shadowBlur = 0;
+                }
+                waveCtx.fillRect(x, h - barHeight - 2, barWidth - 2, barHeight + 2);
+            }
+        }
+
+        playBtn.onclick = () => {
+            setupAudio();
+            if(aCtx.state === 'suspended') aCtx.resume();
+            if(audio.paused) {
+                audio.play();
+                playBtn.innerText = "Disconnect";
+                pushLog("OS CORE ACTIVE.");
+            } else {
+                audio.pause();
+                playBtn.innerText = "Connect Core";
+                pushLog("OS CORE STANDBY.");
+            }
+        };
+
+        document.getElementById('next-btn').onclick = () => {
+            idx = (idx + 1) % playlist.length;
+            audio.src = playlist[idx].u;
+            document.getElementById('status-info').innerText = `OS.TRACK_DATA: ${playlist[idx].n}`;
+            pushLog(`MOUNTING: ${playlist[idx].n}`);
+            audio.play();
+        };
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+                document.getElementById('fs-toggle').innerText = "[ EXIT FULLSCREEN ]";
+            } else {
+                document.exitFullscreen();
+                document.getElementById('fs-toggle').innerText = "[ INITIALIZE FULLSCREEN ]";
+            }
+        }
+
+        const prog = document.getElementById('progress-bar');
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('time').innerText = now.toLocaleTimeString('en-GB');
+            document.getElementById('date').innerText = now.toDateString().toUpperCase();
+            prog.style.strokeDashoffset = 1727 - (now.getSeconds() / 60) * 1727;
+        }, 1000);
+
+        const bgCvs = document.getElementById('bg-canvas');
+        const bgCtx = bgCvs.getContext('2d');
+        let ps = [];
+        bgCvs.width = window.innerWidth; bgCvs.height = window.innerHeight;
+        window.onmousemove = (e) => { ps.push({x:e.x, y:e.y, l:1}) };
+        function anim() {
+            bgCtx.clearRect(0,0,bgCvs.width,bgCvs.height);
+            ps.forEach((p,i) => {
+                p.l -= 0.02; bgCtx.fillStyle = `rgba(0,242,255,${p.l})`;
+                bgCtx.fillRect(p.x, p.y, 2, 2);
+                if(p.l<=0) ps.splice(i,1);
+            });
+            requestAnimationFrame(anim);
+        }
+        anim();
+        pushLog("INTERFACE SYNC COMPLETE.");
+    </script>
+</body>
+</html>
+
