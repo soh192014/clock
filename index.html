@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teal Future OS - Massive Scale</title>
     <link rel="icon" href="Screenshot_20260510_203622_com_android_chrome_CustomTabActivity_edit_855563587456178.jpg " type="image/x-icon"> 
+    <title>Teal Future OS - Wave Progress</title>
     <style>
         :root {
             --teal: #00f2ff;
@@ -20,22 +20,7 @@
             overflow: hidden; height: 100vh;
         }
 
-        #canvas { position: absolute; top: 0; left: 0; z-index: 1; }
-
-        .tools {
-            position: absolute; top: 20px; right: 20px; z-index: 100;
-        }
-
-        .tool-btn {
-            background: rgba(0, 242, 255, 0.1);
-            border: 1px solid var(--teal);
-            color: var(--teal);
-            padding: 8px 15px;
-            cursor: pointer;
-            font-size: 14px;
-            backdrop-filter: blur(5px);
-            pointer-events: auto;
-        }
+        #bg-canvas { position: absolute; top: 0; left: 0; z-index: 1; }
 
         .main-interface {
             position: relative; z-index: 10;
@@ -44,118 +29,89 @@
             height: 100vh; pointer-events: none;
         }
 
-        /* --- 巨大的圆圈容器 --- */
+        /* 超大圆圈 */
         .clock-wrapper {
             position: relative; 
-            width: 650px; /* 超大容器 */
-            height: 650px; 
+            width: 600px; height: 600px; 
             display: flex; justify-content: center; align-items: center;
             pointer-events: auto;
         }
 
-        /* --- 能量环放大 --- */
         .energy-ring { 
             position: absolute; 
             transform: rotate(-90deg); 
             filter: drop-shadow(0 0 20px var(--teal));
         }
 
-        .ring-bg {
-            fill: none;
-            stroke: rgba(0, 242, 255, 0.05);
-            stroke-width: 6;
-        }
-
         .ring-progress { 
-            fill: none; 
-            stroke: var(--teal); 
-            stroke-width: 8; 
-            stroke-dasharray: 1884; /* 周长: 2 * PI * 300 */
-            stroke-dashoffset: 1884; 
+            fill: none; stroke: var(--teal); stroke-width: 6; 
+            stroke-dasharray: 1884; stroke-dashoffset: 1884; 
             transition: stroke-dashoffset 1s linear; 
-            stroke-linecap: round;
         }
 
-        /* --- 文字比例同步放大 --- */
-        #time { font-size: 120px; font-weight: bold; text-shadow: 0 0 30px var(--teal); }
-        #date { font-size: 20px; letter-spacing: 5px; opacity: 0.7; margin-top: 10px; }
-        
-        #controls { pointer-events: auto; margin-top: 40px; text-align: center; }
-        
+        #time { font-size: 110px; font-weight: bold; text-shadow: 0 0 30px var(--teal); }
+
+        /* --- 新功能：波形进度条容器 --- */
+        #visualizer-wrapper {
+            margin-top: 50px;
+            width: 500px;
+            height: 100px;
+            position: relative;
+            pointer-events: auto;
+        }
+
+        #wave-canvas {
+            width: 100%;
+            height: 100%;
+            border-bottom: 1px solid rgba(0, 242, 255, 0.3);
+        }
+
+        #controls { pointer-events: auto; margin-top: 20px; text-align: center; }
         .control-btn {
             background: transparent; border: 1px solid var(--teal);
-            color: var(--teal); padding: 12px 25px;
-            cursor: pointer; margin: 0 10px;
-            font-size: 14px;
-            text-transform: uppercase;
-        }
-
-        /* --- 音量波动条 --- */
-        #viz-wrapper {
-            margin-top: 30px;
-            width: 400px;
-            height: 4px;
-            background: rgba(0, 242, 255, 0.1);
-            position: relative;
-        }
-        #vol-bar {
-            height: 100%;
-            background: var(--teal);
-            width: 0%;
-            box-shadow: 0 0 15px var(--teal);
-            transition: width 0.1s ease;
+            color: var(--teal); padding: 10px 20px; cursor: pointer;
+            margin: 0 10px; font-size: 13px;
         }
 
         #log-container {
             position: absolute; bottom: 20px; left: 20px;
-            width: 400px; height: 100px; font-size: 11px;
+            width: 300px; height: 80px; font-size: 11px;
             color: var(--dark-teal); overflow: hidden;
-            pointer-events: none;
         }
     </style>
 </head>
 <body>
 
-    <canvas id="canvas"></canvas>
-
-    <div class="tools">
-        <button class="tool-btn" onclick="toggleFullScreen()">[ MAXIMIZE CONSOLE ]</button>
-    </div>
+    <canvas id="bg-canvas"></canvas>
 
     <div id="log-container"></div>
 
     <div class="main-interface">
         <div class="clock-wrapper">
             <svg class="energy-ring" width="620" height="620">
-                <circle class="ring-bg" cx="310" cy="310" r="300"></circle>
+                <circle cx="310" cy="310" r="300" fill="none" stroke="rgba(0,242,255,0.05)" stroke-width="2"></circle>
                 <circle id="progress-bar" class="ring-progress" cx="310" cy="310" r="300"></circle>
             </svg>
             <div style="text-align: center;">
                 <div id="time">00:00:00</div>
-                <div id="date">SYNCING DATE...</div>
+                <div id="date" style="font-size: 18px; opacity: 0.7;">LOADING...</div>
             </div>
         </div>
 
+        <div id="visualizer-wrapper">
+            <canvas id="wave-canvas"></canvas>
+        </div>
+
         <div id="controls">
-            <button class="control-btn" id="play-btn">Initialize Audio</button>
-            <button class="control-btn" id="next-btn">Skip Track</button>
-            <div id="viz-wrapper"><div id="vol-bar"></div></div>
-            <div id="song-name" style="margin-top: 15px; font-size: 12px; opacity: 0.5;">AWAITING COMMAND...</div>
+            <button class="control-btn" id="play-btn">INITIALIZE CORE</button>
+            <button class="control-btn" id="next-btn">NEXT TRACK</button>
+            <div id="song-info" style="font-size: 11px; margin-top: 10px; opacity: 0.5;">IDLE</div>
         </div>
         
         <audio id="song" loop crossOrigin="anonymous"></audio>
     </div>
 
     <script>
-        const logBox = document.getElementById('log-container');
-        function addLog(msg) {
-            const d = document.createElement('div');
-            d.innerText = `> ${new Date().toLocaleTimeString()}: ${msg}`;
-            logBox.prepend(d);
-            if(logBox.childNodes.length > 5) logBox.lastChild.remove();
-        }
-
-        // --- 歌曲列表 ---
         const playlist = [
             { n: "Atlas Relax", u: "atlasaudio-relax-511892.mp3" },
             { n: "Mountain Relax", u: "the_mountain-relax-508021 (1).mp3" }
@@ -163,88 +119,112 @@
         let idx = 0;
 
         const audio = document.getElementById('song');
-        const volBar = document.getElementById('vol-bar');
-        const songName = document.getElementById('song-name');
+        const waveCanvas = document.getElementById('wave-canvas');
+        const waveCtx = waveCanvas.getContext('2d');
+        const playBtn = document.getElementById('play-btn');
 
-        function load(i) {
-            audio.src = playlist[i].u;
-            songName.innerText = `TRACK: ${playlist[i].n}`;
-            addLog(`MOUNTING: ${playlist[i].n}`);
+        // 设置画布分辨率
+        function resizeWaveCanvas() {
+            waveCanvas.width = waveCanvas.offsetWidth;
+            waveCanvas.height = waveCanvas.offsetHeight;
         }
-        load(0);
+        window.addEventListener('resize', resizeWaveCanvas);
+        resizeWaveCanvas();
 
-        // --- 音量分析器 ---
         let aCtx, analyser, data;
-        function initViz() {
+
+        function initAudio() {
             if (aCtx) return;
             aCtx = new (window.AudioContext || window.webkitAudioContext)();
             analyser = aCtx.createAnalyser();
             const source = aCtx.createMediaElementSource(audio);
             source.connect(analyser);
             analyser.connect(aCtx.destination);
+            analyser.fftSize = 256;
             data = new Uint8Array(analyser.frequencyBinCount);
-            renderViz();
+            render();
         }
 
-        function renderViz() {
-            requestAnimationFrame(renderViz);
-            if(audio.paused) { volBar.style.width = "0%"; return; }
-            analyser.getByteFrequencyData(data);
-            let avg = data.reduce((a, b) => a + b) / data.length;
-            volBar.style.width = (avg * 1.5) + "%";
+        function render() {
+            requestAnimationFrame(render);
+            const w = waveCanvas.width;
+            const h = waveCanvas.height;
+            waveCtx.clearRect(0, 0, w, h);
+
+            // 1. 获取音频频率数据
+            if (!audio.paused) {
+                analyser.getByteFrequencyData(data);
+            } else {
+                data.fill(0); // 没音乐时平掉
+            }
+
+            // 2. 计算播放进度 (0 到 1)
+            const progress = audio.duration ? audio.currentTime / audio.duration : 0;
+            const progressX = w * progress;
+
+            // 3. 绘制波形
+            const barWidth = w / data.length;
+            for (let i = 0; i < data.length; i++) {
+                const barHeight = (data[i] / 255) * h * 0.8;
+                const x = i * barWidth;
+                const y = h - barHeight;
+
+                // 判断颜色：如果在进度条左侧，用亮蓝色，右侧用暗色
+                if (x < progressX) {
+                    waveCtx.fillStyle = '#00f2ff';
+                    waveCtx.shadowBlur = 10;
+                    waveCtx.shadowColor = '#00f2ff';
+                } else {
+                    waveCtx.fillStyle = '#004d4d';
+                    waveCtx.shadowBlur = 0;
+                }
+
+                // 绘制跳动的柱子（平时高度为2，看起来像条平线）
+                waveCtx.fillRect(x, y - 2, barWidth - 1, barHeight + 2);
+            }
+
+            // 4. 绘制进度指示光点
+            waveCtx.fillStyle = '#fff';
+            waveCtx.fillRect(progressX - 1, 0, 2, h);
         }
 
-        document.getElementById('play-btn').onclick = () => {
-            initViz();
+        playBtn.onclick = () => {
+            initAudio();
             if(aCtx.state === 'suspended') aCtx.resume();
             if(audio.paused) {
                 audio.play();
-                document.getElementById('play-btn').innerText = "Halt System";
+                playBtn.innerText = "HALT SYSTEM";
             } else {
                 audio.pause();
-                document.getElementById('play-btn').innerText = "Initialize Audio";
+                playBtn.innerText = "INITIALIZE CORE";
             }
         };
 
         document.getElementById('next-btn').onclick = () => {
             idx = (idx + 1) % playlist.length;
-            load(idx);
+            audio.src = playlist[idx].u;
+            document.getElementById('song-info').innerText = `TRACK: ${playlist[idx].n}`;
             audio.play();
         };
 
-        function toggleFullScreen() {
-            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-            else document.exitFullscreen();
-        }
-
-        // 时钟
-        const bar = document.getElementById('progress-bar');
-        const CIRC = 1884;
+        // 时钟和粒子背景 (保持原有逻辑)
+        const prog = document.getElementById('progress-bar');
         setInterval(() => {
-            const n = new Date();
-            document.getElementById('time').innerText = n.toLocaleTimeString('en-GB');
-            document.getElementById('date').innerText = n.toDateString().toUpperCase();
-            bar.style.strokeDashoffset = CIRC - (n.getSeconds()/60)*CIRC;
+            const now = new Date();
+            document.getElementById('time').innerText = now.toLocaleTimeString('en-GB');
+            document.getElementById('date').innerText = now.toDateString().toUpperCase();
+            prog.style.strokeDashoffset = 1884 - (now.getSeconds() / 60) * 1884;
         }, 1000);
 
-        // 粒子
-        const cvs = document.getElementById('canvas');
-        const ctx = cvs.getContext('2d');
+        // 背景粒子
+        const bgCvs = document.getElementById('bg-canvas');
+        const bgCtx = bgCvs.getContext('2d');
         let ps = [];
-        window.onresize = () => { cvs.width = window.innerWidth; cvs.height = window.innerHeight; };
+        window.onresize = () => { bgCvs.width = window.innerWidth; bgCvs.height = window.innerHeight; };
         window.onresize();
-        window.onmousemove = (e) => { for(let i=0;i<3;i++) ps.push({x:e.x, y:e.y, l:1, s:Math.random()*2}) };
-        function run() {
-            ctx.clearRect(0,0,cvs.width,cvs.height);
+        window.onmousemove = (e) => { ps.push({x:e.x, y:e.y, l:1}) };
+        function anim() {
+            bgCtx.clearRect(0,0,bgCvs.width,bgCvs.height);
             ps.forEach((p,i) => {
-                p.x += Math.random()*2-1; p.y += Math.random()*2-1; p.l -= 0.01;
-                ctx.fillStyle = `rgba(0,242,255,${p.l})`;
-                ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, 7); ctx.fill();
-                if(p.l<=0) ps.splice(i,1);
-            });
-            requestAnimationFrame(run);
-        }
-        run();
-    </script>
-</body>
-</html>
+                p.l -= 0.01; bgCtx.fillStyle = `rgba(0,242,255,${p.l})`;
+                bgCtx.fillRect(p.x, p.y, 2,
