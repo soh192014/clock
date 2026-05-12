@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Future Console - Smart OS</title>
-    <link rel="icon" href="Screenshot_20260510_203622_com_android_chrome_CustomTabActivity_edit_855563587456178.jpg " type="image/x-icon"> 
+    <link rel="icon" href="Screenshot_20260510_203622_com_android_chrome_CustomTabActivity_edit_855563587456178.jpg" type="image/jpeg">
     <style>
         :root {
             --teal: #00f2ff;
@@ -22,7 +22,7 @@
 
         #bg-canvas { position: absolute; top: 0; left: 0; z-index: 1; }
 
-        /* 优化后的全屏按钮 */
+        /* 全屏交互优化 */
         .tools {
             position: absolute; top: 30px; right: 30px; z-index: 100;
         }
@@ -61,7 +61,7 @@
             display: flex; flex-direction: column-reverse;
         }
 
-        .log-line { margin-bottom: 6px; animation: fadeIn 0.3s ease; }
+        .log-line { margin-bottom: 6px; animation: fadeIn 0.3s ease; opacity: 0.7; }
         @keyframes fadeIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 0.7; transform: translateX(0); } }
 
         .main-interface {
@@ -71,6 +71,7 @@
             height: 100vh; pointer-events: none;
         }
 
+        /* 巨型圆圈 */
         .clock-wrapper {
             position: relative; 
             width: 580px; height: 580px; 
@@ -101,12 +102,20 @@
             pointer-events: auto;
         }
 
-        #controls { pointer-events: auto; margin-top: 20px; text-align: center; }
+        /* --- 修改：按钮区域往下放了 50 像素 --- */
+        #controls { 
+            pointer-events: auto; 
+            margin-top: 70px; /* 从 20px 增加到 70px */
+            text-align: center; 
+        }
+
         .control-btn {
             background: transparent; border: 1px solid var(--teal);
             color: var(--teal); padding: 12px 25px; cursor: pointer;
             margin: 0 10px; font-size: 12px; text-transform: uppercase;
+            transition: 0.3s;
         }
+        .control-btn:hover { background: rgba(0, 242, 255, 0.2); }
     </style>
 </head>
 <body>
@@ -127,7 +136,7 @@
             </svg>
             <div style="text-align: center;">
                 <div id="time">00:00:00</div>
-                <div id="date">SYSTEM BOOTING...</div>
+                <div id="date">SYSTEM LOADING...</div>
             </div>
         </div>
 
@@ -145,7 +154,6 @@
     </div>
 
     <script>
-        // --- 1. 智能日志反馈逻辑 ---
         const logWindow = document.getElementById('log-window');
         function pushLog(msg) {
             const line = document.createElement('div');
@@ -155,7 +163,6 @@
             if(logWindow.childNodes.length > 8) logWindow.lastChild.remove();
         }
 
-        // --- 2. 歌曲列表 ---
         const playlist = [
             { n: "Atlas Relax", u: "atlasaudio-relax-511892.mp3" },
             { n: "Mountain Relax", u: "the_mountain-relax-508021 (1).mp3" }
@@ -239,7 +246,6 @@
             audio.play();
         };
 
-        // --- 3. 全屏交互优化 ---
         function toggleFullScreen() {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen();
@@ -252,14 +258,6 @@
             }
         }
 
-        // 监听 Esc 键退出全屏时的文字变化
-        document.addEventListener('fullscreenchange', () => {
-            if (!document.fullscreenElement) {
-                document.getElementById('fs-toggle').innerText = "[ INITIALIZE FULLSCREEN ]";
-            }
-        });
-
-        // 时钟逻辑
         const prog = document.getElementById('progress-bar');
         setInterval(() => {
             const now = new Date();
@@ -268,16 +266,10 @@
             prog.style.strokeDashoffset = 1727 - (now.getSeconds() / 60) * 1727;
         }, 1000);
 
-        // 背景粒子
         const bgCvs = document.getElementById('bg-canvas');
         const bgCtx = bgCvs.getContext('2d');
         let ps = [];
-        window.addEventListener('resize', () => { 
-            bgCvs.width = window.innerWidth; 
-            bgCvs.height = window.innerHeight; 
-        });
         bgCvs.width = window.innerWidth; bgCvs.height = window.innerHeight;
-
         window.onmousemove = (e) => { ps.push({x:e.x, y:e.y, l:1}) };
         function anim() {
             bgCtx.clearRect(0,0,bgCvs.width,bgCvs.height);
@@ -290,7 +282,6 @@
         }
         anim();
         
-        // 初始日志
         pushLog("SYSTEM INITIALIZED...");
         pushLog("WAITING FOR NEURAL LINK...");
     </script>
