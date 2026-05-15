@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Future Console v4.15 - Enhanced</title>
+    <title>Future Console v4.0 - Pro</title>
     <link rel="icon" href="Screenshot_20260510_203622_com_android_chrome_CustomTabActivity_edit_855563587456178.jpg" type="image/jpeg">
     <style>
         :root { --teal: #00f2ff; --bg: #050b0c; }
@@ -18,25 +18,30 @@
         #log-window { position: absolute; bottom: 30px; left: 30px; width: 350px; height: 120px; border-left: 2px solid var(--teal); padding: 10px; font-size: 11px; z-index: 100; display: flex; flex-direction: column-reverse; overflow: hidden; }
         .log-line { margin-bottom: 4px; opacity: 0.7; }
 
+        /* 主界面容器 */
         .main-interface { position: relative; z-index: 10; display: flex; flex-direction: column; justify-content: space-around; align-items: center; height: 100vh; width: 100%; padding: 40px 0; box-sizing: border-box; pointer-events: none; }
+        
+        /* 垂直音量条控制 */
+        #volume-panel { position: absolute; right: 40px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 15px; pointer-events: auto; z-index: 100; }
+        #volume-slider-container { width: 4px; height: 200px; background: rgba(0, 242, 255, 0.1); border: 1px solid rgba(0, 242, 255, 0.2); position: relative; cursor: pointer; }
+        #volume-fill { position: absolute; bottom: 0; width: 100%; background: var(--teal); height: 80%; box-shadow: 0 0 15px var(--teal); transition: height 0.1s; }
+        .vol-label { font-size: 10px; writing-mode: vertical-lr; text-orientation: upright; opacity: 0.6; letter-spacing: 2px; }
+
         .clock-wrapper { position: relative; width: 560px; height: 560px; display: flex; justify-content: center; align-items: center; pointer-events: auto; }
         .energy-ring { position: absolute; transform: rotate(-90deg); filter: drop-shadow(0 0 15px var(--teal)); }
         .ring-progress { fill: none; stroke: var(--teal); stroke-width: 4; stroke-dasharray: 1696; stroke-dashoffset: 1696; transition: stroke-dashoffset 1s linear; }
         #time { font-size: 100px; font-weight: bold; text-shadow: 0 0 25px var(--teal); }
         #date { font-size: 18px; letter-spacing: 5px; opacity: 0.6; margin-top: 10px; }
 
-        /* 音乐控制区 */
         #player-container { width: 450px; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: auto; }
         #viz-container { width: 100%; height: 60px; }
-        
-        /* 新增：歌曲时间线 */
-        #timeline-container { width: 100%; height: 4px; background: rgba(0, 242, 255, 0.1); cursor: pointer; position: relative; }
-        #timeline-fill { height: 100%; background: var(--teal); width: 0%; box-shadow: 0 0 10px var(--teal); }
-        #time-display { width: 100%; display: flex; justify-content: space-between; font-size: 10px; opacity: 0.6; margin-top: 4px; }
+        #timeline-container { width: 100%; height: 2px; background: rgba(0, 242, 255, 0.1); cursor: pointer; position: relative; }
+        #timeline-fill { height: 100%; background: var(--teal); width: 0%; }
+        #time-display { width: 100%; display: flex; justify-content: space-between; font-size: 9px; opacity: 0.5; }
 
         #controls { pointer-events: auto; text-align: center; margin-top: 10px; }
-        .control-btn { background: transparent; border: 1px solid var(--teal); color: var(--teal); padding: 10px 20px; cursor: pointer; margin: 0 5px; font-size: 11px; transition: 0.3s; }
-        .control-btn:hover { background: rgba(0, 242, 255, 0.2); }
+        .control-btn { background: transparent; border: 1px solid var(--teal); color: var(--teal); padding: 10px 20px; cursor: pointer; margin: 0 5px; font-size: 11px; }
+        .control-btn:hover { background: rgba(0, 242, 255, 0.1); }
     </style>
 </head>
 <body>
@@ -48,6 +53,14 @@
     </div>
 
     <div id="log-window"></div>
+
+    <div id="volume-panel">
+        <span class="vol-label">VOL</span>
+        <div id="volume-slider-container">
+            <div id="volume-fill"></div>
+        </div>
+        <span id="vol-percent" style="font-size: 10px;">80%</span>
+    </div>
 
     <div class="main-interface">
         <div class="clock-wrapper">
@@ -63,14 +76,8 @@
 
         <div id="player-container">
             <div id="viz-container"><canvas id="wave-canvas"></canvas></div>
-            
-            <div id="timeline-container">
-                <div id="timeline-fill"></div>
-            </div>
-            <div id="time-display">
-                <span id="curr-time">0:00</span>
-                <span id="total-time">0:00</span>
-            </div>
+            <div id="timeline-container"><div id="timeline-fill"></div></div>
+            <div id="time-display"><span id="curr-time">0:00</span><span id="total-time">0:00</span></div>
 
             <div id="controls">
                 <div id="status-info" style="font-size: 10px; margin-bottom: 15px; opacity: 0.5;">OS READY</div>
@@ -86,9 +93,8 @@
         const logWindow = document.getElementById('log-window');
         const audio = document.getElementById('song');
         const timelineFill = document.getElementById('timeline-fill');
-        const timelineContainer = document.getElementById('timeline-container');
-        const currTimeText = document.getElementById('curr-time');
-        const totalTimeText = document.getElementById('total-time');
+        const volFill = document.getElementById('volume-fill');
+        const volPercent = document.getElementById('vol-percent');
 
         function pushLog(msg) {
             const line = document.createElement('div');
@@ -105,125 +111,35 @@
         ];
         let idx = 0;
 
-        // 格式化时间
-        function formatTime(secs) {
-            const mins = Math.floor(secs / 60);
-            const s = Math.floor(secs % 60);
-            return `${mins}:${s < 10 ? '0' : ''}${s}`;
+        // 音量控制逻辑
+        const volContainer = document.getElementById('volume-slider-container');
+        function setVolume(e) {
+            const rect = volContainer.getBoundingClientRect();
+            let offsetY = e.clientY - rect.top;
+            let pct = 1 - (offsetY / rect.height);
+            pct = Math.max(0, Math.min(1, pct)); // 限制在0-1之间
+            audio.volume = pct;
+            volFill.style.height = (pct * 100) + '%';
+            const displayVol = Math.round(pct * 100);
+            volPercent.innerText = displayVol + '%';
+            
+            if(displayVol === 0) pushLog("AUDIO MUTED");
+            else if(displayVol % 20 === 0) pushLog(`VOLUME: ${displayVol}%`); // 减少日志刷屏，整十显示
         }
 
-        // 更新时间线
+        volContainer.onmousedown = (e) => {
+            setVolume(e);
+            window.onmousemove = setVolume;
+            window.onmouseup = () => window.onmousemove = null;
+        };
+
+        // 时间逻辑
+        function formatTime(s) {
+            const m = Math.floor(s / 60);
+            const sec = Math.floor(s % 60);
+            return `${m}:${sec < 10 ? '0' : ''}${sec}`;
+        }
+
         audio.ontimeupdate = () => {
             const pct = (audio.currentTime / audio.duration) * 100;
-            timelineFill.style.width = `${pct}%`;
-            currTimeText.innerText = formatTime(audio.currentTime);
-            if(!isNaN(audio.duration)) totalTimeText.innerText = formatTime(audio.duration);
-        };
-
-        // 点击时间线跳转
-        timelineContainer.onclick = (e) => {
-            const rect = timelineContainer.getBoundingClientRect();
-            const pos = (e.clientX - rect.left) / rect.width;
-            audio.currentTime = pos * audio.duration;
-        };
-
-        function updateStats() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(p => {
-                    document.getElementById('location-text').innerText = `LOC: ${p.coords.latitude.toFixed(2)}N, ${p.coords.longitude.toFixed(2)}E`;
-                }, () => {}, {timeout:10000});
-            }
-            if (navigator.connection) {
-                document.getElementById('wifi-signal').innerText = `WiFi: ${navigator.connection.downlink} Mbps`;
-            }
-        }
-        updateStats(); setInterval(updateStats, 5000);
-
-        const waveCanvas = document.getElementById('wave-canvas');
-        const waveCtx = waveCanvas.getContext('2d');
-        let aCtx, analyser, data;
-
-        function setupAudio() {
-            if (aCtx) return;
-            aCtx = new (window.AudioContext || window.webkitAudioContext)();
-            analyser = aCtx.createAnalyser();
-            const source = aCtx.createMediaElementSource(audio);
-            source.connect(analyser);
-            analyser.connect(aCtx.destination);
-            analyser.fftSize = 128;
-            data = new Uint8Array(analyser.frequencyBinCount);
-            renderWave();
-        }
-
-        function renderWave() {
-            requestAnimationFrame(renderWave);
-            const w = waveCanvas.width = waveCanvas.offsetWidth;
-            const h = waveCanvas.height = waveCanvas.offsetHeight;
-            waveCtx.clearRect(0, 0, w, h);
-            if (!audio.paused) analyser.getByteFrequencyData(data);
-            const barW = w / data.length;
-            data.forEach((val, i) => {
-                const barH = (val / 255) * h;
-                waveCtx.fillStyle = '#00f2ff';
-                waveCtx.fillRect(i * barW, h - barH, barW - 2, barH);
-            });
-        }
-
-        document.getElementById('play-btn').onclick = () => {
-            setupAudio();
-            if(audio.paused) { 
-                if(!audio.src) audio.src = playlist[idx].u;
-                audio.play(); 
-                pushLog(`CORE ACTIVE: ${playlist[idx].n}`); 
-            }
-            else { 
-                audio.pause(); 
-                pushLog("CORE STANDBY"); 
-            }
-        };
-
-        document.getElementById('next-btn').onclick = () => {
-            idx = (idx + 1) % playlist.length;
-            audio.src = playlist[idx].u;
-            document.getElementById('status-info').innerText = `OS.DATA: ${playlist[idx].n}`;
-            pushLog(`LOADING DATA: ${playlist[idx].n}`);
-            setupAudio();
-            audio.play();
-        };
-
-        // 时钟逻辑
-        setInterval(() => {
-            const now = new Date();
-            document.getElementById('time').innerText = now.toLocaleTimeString('en-GB');
-            document.getElementById('date').innerText = now.toDateString().toUpperCase();
-            document.getElementById('progress-bar').style.strokeDashoffset = 1696 - (now.getSeconds() / 60) * 1696;
-        }, 1000);
-
-        // 粒子引擎
-        const bgCvs = document.getElementById('bg-canvas');
-        const bgCtx = bgCvs.getContext('2d');
-        let ps = [];
-        bgCvs.width = window.innerWidth; bgCvs.height = window.innerHeight;
-
-        const createP = (e) => {
-            const x = e.touches ? e.touches[0].clientX : e.clientX;
-            const y = e.touches ? e.touches[0].clientY : e.clientY;
-            for(let i=0; i<5; i++) ps.push({x, y, l:1, vx:(Math.random()-0.5)*2, vy:(Math.random()-0.5)*2});
-        };
-        window.onmousemove = createP; window.ontouchmove = createP;
-
-        function anim() {
-            bgCtx.clearRect(0,0,bgCvs.width,bgCvs.height);
-            ps.forEach((p,i) => {
-                p.l -= 0.015; p.x += p.vx; p.y += p.vy;
-                bgCtx.fillStyle = `rgba(0,242,255,${p.l})`;
-                bgCtx.fillRect(p.x, p.y, 1.5, 1.5);
-                if(p.l <= 0) ps.splice(i,1);
-            });
-            requestAnimationFrame(anim);
-        }
-        anim();
-        pushLog("SYSTEM ONLINE");
-    </script>
-</body>
-</html>
+            timelineFill.style.width = pct
