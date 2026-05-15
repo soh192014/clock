@@ -142,4 +142,106 @@
 
         audio.ontimeupdate = () => {
             const pct = (audio.currentTime / audio.duration) * 100;
-            timelineFill.style.width = pct
+            timelineFill.style.width = pct + '%';
+            document.getElementById('curr-time').innerText = formatTime(audio.currentTime);
+            if(!isNaN(audio.duration)) document.getElementById('total-time').innerText = formatTime(audio.duration);
+        };
+
+        document.getElementById('timeline-container').onclick = (e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+        };
+
+        // 播放控制
+        document.getElementById('play-btn').onclick = () => {
+            setupAudio();
+            if(audio.paused) { 
+                if(!audio.src) audio.src = playlist[idx].u;
+                audio.play(); 
+                pushLog(`CORE ACTIVE: ${playlist[idx].n}`); 
+            } else { 
+                audio.pause(); 
+                pushLog("CORE STANDBY"); 
+            }
+        };
+
+        document.getElementById('next-btn').onclick = () => {
+            idx = (idx + 1) % playlist.length;
+            audio.src = playlist[idx].u;
+            document.getElementById('status-info').innerText = `OS.DATA: ${playlist[idx].n}`;
+            pushLog(`LOADING DATA: ${playlist[idx].n}`);
+            audio.play();
+        };
+
+        // 地理与可视化 (保持原样)
+        function updateStats() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(p => {
+                    document.getElementById('location-text').innerText = `LOC: ${p.coords.latitude.toFixed(2)}N, ${p.coords.longitude.toFixed(2)}E`;
+                }, null, {timeout:5000});
+            }
+            if (navigator.connection) {
+                document.getElementById('wifi-signal').innerText = `WiFi: ${navigator.connection.downlink} Mbps`;
+            }
+        }
+        updateStats(); setInterval(updateStats, 5000);
+
+        const waveCanvas = document.getElementById('wave-canvas');
+        const waveCtx = waveCanvas.getContext('2d');
+        let aCtx, analyser, data;
+
+        function setupAudio() {
+            if (aCtx) return;
+            aCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = aCtx.createAnalyser();
+            const source = aCtx.createMediaElementSource(audio);
+            source.connect(analyser);
+            analyser.connect(aCtx.destination);
+            analyser.fftSize = 128;
+            data = new Uint8Array(analyser.frequencyBinCount);
+            renderWave();
+        }
+
+        function renderWave() {
+            requestAnimationFrame(renderWave);
+            const w = waveCanvas.width = waveCanvas.offsetWidth;
+            const h = waveCanvas.height = waveCanvas.offsetHeight;
+            waveCtx.clearRect(0, 0, w, h);
+            if (!audio.paused) analyser.getByteFrequencyData(data);
+            const barW = w / data.length;
+            data.forEach((val, i) => {
+                const barH = (val / 255) * h;
+                waveCtx.fillStyle = '#00f2ff';
+                waveCtx.fillRect(i * barW, h - barH, barW - 2, barH);
+            });
+        }
+
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('time').innerText = now.toLocaleTimeString('en-GB');
+            document.getElementById('date').innerText = now.toDateString().toUpperCase();
+            document.getElementById('progress-bar').style.strokeDashoffset = 1696 - (now.getSeconds() / 60) * 1696;
+        }, 1000);
+
+        const bgCvs = document.getElementById('bg-canvas');
+        const bgCtx = bgCvs.getContext('2d');
+        let ps = [];
+        bgCvs.width = window.innerWidth; bgCvs.height = window.innerHeight;
+        window.onmousemove = (e) => {
+            for(let i=0; i<3; i++) ps.push({x:e.clientX, y:e.clientY, l:1, vx:(Math.random()-0.5)*2, vy:(Math.random()-0.5)*2});
+        };
+        function anim() {
+            bgCtx.clearRect(0,0,bgCvs.width,bgCvs.height);
+            ps.forEach((p,i) => {
+                p.l -= 0.02; p.x += p.vx; p.y += p.vy;
+                bgCtx.fillStyle = `rgba(0,242,255,${p.l})`;
+                bgCtx.fillRect(p.x, p.y, 1.5, 1.5);
+                if(p.l <= 0) ps.splice(i,1);
+            });
+            requestAnimationFrame(anim);
+        }
+        anim();
+        pushLog("SYSTEM ONLINE");
+    </script>
+</body>
+</html>
